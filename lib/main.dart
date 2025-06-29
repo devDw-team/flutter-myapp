@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
+import 'utils/debug_helper.dart';
+import 'widgets/auth_wrapper.dart';
 import 'screens/home_screen.dart';
 import 'screens/timeline_screen.dart';
 import 'screens/info_screen.dart';
@@ -34,7 +36,10 @@ class OneMomentApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const MainScreen(),
+      home: const AuthWrapper(child: MainScreen()),
+      routes: {
+        '/main': (context) => const MainScreen(),
+      },
     );
   }
 }

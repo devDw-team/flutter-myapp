@@ -1,5 +1,6 @@
 class MomentEntry {
   final String? id;
+  final String? userId;
   final String title;
   final String content;
   final String? imagePath;
@@ -11,6 +12,7 @@ class MomentEntry {
 
   MomentEntry({
     this.id,
+    this.userId,
     required this.title,
     required this.content,
     this.imagePath,
@@ -25,6 +27,7 @@ class MomentEntry {
   factory MomentEntry.fromJson(Map<String, dynamic> json) {
     return MomentEntry(
       id: json['id'],
+      userId: json['user_id'],
       title: json['title'],
       content: json['content'],
       imagePath: json['image_path'],
@@ -40,6 +43,7 @@ class MomentEntry {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'user_id': userId,
       'title': title,
       'content': content,
       'image_path': imagePath,
@@ -67,6 +71,7 @@ class MomentEntry {
   // copyWith 메서드 (불변 객체 업데이트용)
   MomentEntry copyWith({
     String? id,
+    String? userId,
     String? title,
     String? content,
     String? imagePath,
@@ -78,6 +83,7 @@ class MomentEntry {
   }) {
     return MomentEntry(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       title: title ?? this.title,
       content: content ?? this.content,
       imagePath: imagePath ?? this.imagePath,

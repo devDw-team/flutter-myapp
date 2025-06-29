@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin/database_admin_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -11,6 +12,41 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   bool _darkMode = false;
+  final _supabase = Supabase.instance.client;
+
+  Future<void> _handleLogout() async {
+    try {
+      await _supabase.auth.signOut();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('로그아웃되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('로그아웃 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getUserDisplayName() {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return '게스트';
+    
+    if (user.isAnonymous) {
+      return '게스트 사용자';
+    } else {
+      return user.email ?? '사용자';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +57,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
+          // 사용자 정보 섹션
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.account_circle,
+                  size: 64,
+                  color: Colors.blue,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _getUserDisplayName(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _supabase.auth.currentUser?.isAnonymous == true 
+                      ? '임시 계정으로 로그인됨'
+                      : 'OneMoment+ 사용자',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text(
@@ -144,6 +218,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 MaterialPageRoute(
                   builder: (context) => const DatabaseAdminScreen(),
                 ),
+              );
+            },
+          ),
+          
+          const Divider(),
+          
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              '계정',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('로그아웃'),
+            subtitle: const Text('현재 계정에서 로그아웃합니다'),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text('로그아웃'),
+                    content: const Text('정말로 로그아웃하시겠습니까?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('취소'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _handleLogout();
+                        },
+                        child: const Text(
+                          '로그아웃',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             },
           ),

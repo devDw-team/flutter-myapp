@@ -5,12 +5,19 @@ import '../models/moment_entry.dart';
 class MomentService {
   static const String tableName = 'moment_entries';
 
-  // 모든 일기 항목 조회
-  Future<List<MomentEntry>> getAllMoments() async {
+  // 현재 사용자의 모든 일기 항목 조회
+  static Future<List<MomentEntry>> getAllMoments() async {
     try {
+      // 현재 로그인된 사용자 확인
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       final response = await supabase
           .from(tableName)
           .select()
+          .eq('user_id', user.id)
           .order('created_at', ascending: false);
       
       return (response as List)
@@ -22,12 +29,18 @@ class MomentService {
   }
 
   // 특정 일기 항목 조회
-  Future<MomentEntry?> getMomentById(String id) async {
+  static Future<MomentEntry?> getMomentById(String id) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       final response = await supabase
           .from(tableName)
           .select()
           .eq('id', id)
+          .eq('user_id', user.id)
           .single();
       
       return MomentEntry.fromJson(response);
@@ -37,11 +50,20 @@ class MomentService {
   }
 
   // 새로운 일기 항목 생성
-  Future<MomentEntry> createMoment(MomentEntry moment) async {
+  static Future<MomentEntry> createMoment(MomentEntry moment) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
+      // user_id 설정
+      final momentData = moment.toInsertJson();
+      momentData['user_id'] = user.id;
+
       final response = await supabase
           .from(tableName)
-          .insert(moment.toInsertJson())
+          .insert(momentData)
           .select()
           .single();
       
@@ -52,8 +74,13 @@ class MomentService {
   }
 
   // 일기 항목 업데이트
-  Future<MomentEntry> updateMoment(String id, MomentEntry moment) async {
+  static Future<MomentEntry> updateMoment(String id, MomentEntry moment) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       final updateData = moment.toInsertJson();
       updateData['updated_at'] = DateTime.now().toIso8601String();
       
@@ -61,6 +88,7 @@ class MomentService {
           .from(tableName)
           .update(updateData)
           .eq('id', id)
+          .eq('user_id', user.id)
           .select()
           .single();
       
@@ -71,23 +99,35 @@ class MomentService {
   }
 
   // 일기 항목 삭제
-  Future<void> deleteMoment(String id) async {
+  static Future<void> deleteMoment(String id) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       await supabase
           .from(tableName)
           .delete()
-          .eq('id', id);
+          .eq('id', id)
+          .eq('user_id', user.id);
     } catch (e) {
       throw Exception('일기 삭제 중 오류가 발생했습니다: $e');
     }
   }
 
   // 날짜 범위로 일기 검색
-  Future<List<MomentEntry>> getMomentsByDateRange(DateTime start, DateTime end) async {
+  static Future<List<MomentEntry>> getMomentsByDateRange(DateTime start, DateTime end) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       final response = await supabase
           .from(tableName)
           .select()
+          .eq('user_id', user.id)
           .gte('created_at', start.toIso8601String())
           .lte('created_at', end.toIso8601String())
           .order('created_at', ascending: false);
@@ -101,11 +141,17 @@ class MomentService {
   }
 
   // 텍스트로 일기 검색
-  Future<List<MomentEntry>> searchMoments(String query) async {
+  static Future<List<MomentEntry>> searchMoments(String query) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
       final response = await supabase
           .from(tableName)
           .select()
+          .eq('user_id', user.id)
           .or('title.ilike.%$query%,content.ilike.%$query%')
           .order('created_at', ascending: false);
       
@@ -117,26 +163,6 @@ class MomentService {
     }
   }
 
-  // 이미지 업로드 (Supabase Storage 사용)
-  Future<String?> uploadImage(String filePath, String fileName) async {
-    try {
-      final bytes = await supabase.storage
-          .from('moment-images')
-          .uploadBinary(fileName, await _getFileBytes(filePath));
-      
-      final publicUrl = supabase.storage
-          .from('moment-images')
-          .getPublicUrl(fileName);
-      
-      return publicUrl;
-    } catch (e) {
-      throw Exception('이미지 업로드 중 오류가 발생했습니다: $e');
-    }
-  }
-
-  // 파일 바이트 읽기 헬퍼 메서드 (실제 구현 시 플랫폼별 처리 필요)
-  Future<List<int>> _getFileBytes(String filePath) async {
-    // 실제 구현에서는 File.readAsBytes() 또는 플랫폼별 파일 읽기 로직 필요
-    throw UnimplementedError('파일 읽기 로직을 구현해야 합니다');
-  }
+  // 이미지 업로드 (Supabase Storage 사용) - 현재 사용하지 않음
+  // 홈 화면에서 직접 Storage API 사용
 } 

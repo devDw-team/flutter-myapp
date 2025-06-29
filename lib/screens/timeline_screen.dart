@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/moment_service.dart';
+import '../models/moment_entry.dart';
 
 class TimelineScreen extends StatefulWidget {
   const TimelineScreen({super.key});
@@ -9,24 +12,71 @@ class TimelineScreen extends StatefulWidget {
 }
 
 class _TimelineScreenState extends State<TimelineScreen> {
-  // Sample data - replace with actual data from storage
-  final List<Map<String, dynamic>> _records = [
-    {
-      'date': DateTime.now().subtract(const Duration(days: 1)),
-      'text': '오늘은 날씨가 정말 좋았다. 친구들과 공원에서 산책을 즐겼다.',
-      'hasImage': true,
-    },
-    {
-      'date': DateTime.now().subtract(const Duration(days: 2)),
-      'text': '새로운 책을 읽기 시작했다. 흥미로운 내용이 많아서 기대된다.',
-      'hasImage': false,
-    },
-    {
-      'date': DateTime.now().subtract(const Duration(days: 3)),
-      'text': '맛있는 파스타를 만들어 먹었다. 요리하는 재미를 새롭게 발견했다.',
-      'hasImage': true,
-    },
-  ];
+  List<MomentEntry> _moments = [];
+  bool _isLoading = true;
+  String? _error;
+  final _supabase = Supabase.instance.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMoments();
+  }
+
+  Future<void> _loadMoments() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      // 사용자 인증 확인
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _error = '오프라인 상태입니다.\n온라인 연결 후 새로고침해주세요.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 데이터베이스에서 일기 목록 가져오기
+      final moments = await MomentService.getAllMoments();
+      
+      if (mounted) {
+        setState(() {
+          _moments = moments;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = e.toString();
+        
+        // 네트워크 오류 처리
+        if (errorMessage.contains('SocketException') || 
+            errorMessage.contains('Connection failed') ||
+            errorMessage.contains('Failed host lookup')) {
+          errorMessage = '네트워크 연결 오류\n인터넷 연결을 확인해주세요.';
+        }
+        
+        setState(() {
+          _error = errorMessage;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshMoments() async {
+    await _loadMoments();
+  }
+
+  String _getImageUrl(String imagePath) {
+    return _supabase.storage
+        .from('moment-media')
+        .getPublicUrl(imagePath);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,91 +84,189 @@ class _TimelineScreenState extends State<TimelineScreen> {
       appBar: AppBar(
         title: const Text('타임라인'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshMoments,
+          ),
+        ],
       ),
-      body: _records.isEmpty
+      body: _isLoading
           ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.timeline,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    '아직 기록이 없습니다.\n홈에서 첫 번째 기록을 남겨보세요!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
+              child: CircularProgressIndicator(),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _records.length,
-              itemBuilder: (context, index) {
-                final record = _records[index];
-                final date = record['date'] as DateTime;
-                final text = record['text'] as String;
-                final hasImage = record['hasImage'] as bool;
-                
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              DateFormat('MM월 dd일').format(date),
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              DateFormat('E').format(date),
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error,
+                        size: 64,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '오류가 발생했습니다:\n$_error',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 16,
                         ),
-                        const SizedBox(height: 12),
-                        
-                        if (hasImage)
-                          Container(
-                            width: double.infinity,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.image,
-                              size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadMoments,
+                        child: const Text('다시 시도'),
+                      ),
+                    ],
+                  ),
+                )
+              : _moments.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.timeline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            '아직 기록이 없습니다.\n홈에서 첫 번째 기록을 남겨보세요!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
                               color: Colors.grey,
+                              fontSize: 16,
                             ),
                           ),
-                        
-                        if (hasImage) const SizedBox(height: 12),
-                        
-                        Text(
-                          text,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _refreshMoments,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _moments.length,
+                        itemBuilder: (context, index) {
+                          final moment = _moments[index];
+                          
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 날짜 헤더
+                                  Row(
+                                    children: [
+                                      Text(
+                                        DateFormat('MM월 dd일').format(moment.createdAt),
+                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        DateFormat('E HH:mm').format(moment.createdAt),
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  
+                                  // 이미지 (있는 경우)
+                                  if (moment.imagePath != null && moment.imagePath!.isNotEmpty) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        _getImageUrl(moment.imagePath!),
+                                        width: double.infinity,
+                                        height: 200,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Container(
+                                            height: 200,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[300],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Center(
+                                              child: CircularProgressIndicator(),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            height: 200,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[300],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.broken_image,
+                                                  size: 48,
+                                                  color: Colors.grey,
+                                                ),
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  '이미지를 불러올 수 없습니다',
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  
+                                  // 텍스트 내용
+                                  Text(
+                                    moment.content,
+                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                  
+                                  // 위치 정보 (있는 경우)
+                                  if (moment.latitude != null && moment.longitude != null) ...[
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.location_on,
+                                          size: 16,
+                                          color: Colors.grey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          moment.locationName ?? 
+                                          '${moment.latitude!.toStringAsFixed(4)}, ${moment.longitude!.toStringAsFixed(4)}',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
     );
   }
 }

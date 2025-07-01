@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/connectivity_helper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,6 +29,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleAuth() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // 네트워크 연결 확인
+    final hasInternet = await ConnectivityHelper.checkInternetConnection();
+    if (!hasInternet) {
+      if (mounted) {
+        ConnectivityHelper.showConnectionDialog(context, _handleAuth);
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -35,6 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
+      
+      print('인증 시도: ${_isSignUp ? "회원가입" : "로그인"} - $email');
 
       if (_isSignUp) {
         // 회원가입
@@ -44,18 +56,41 @@ class _LoginScreenState extends State<LoginScreen> {
         );
 
         if (response.user != null) {
+          // 사용자 프로필 생성
+          await _createUserProfile(response.user!);
+          
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('회원가입이 완료되었습니다!'),
-                backgroundColor: Colors.green,
-              ),
-            );
+            // 이메일 확인이 필요한 경우와 아닌 경우를 구분
+            if (response.session == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('회원가입이 완료되었습니다! 이메일을 확인해 주세요.'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('회원가입이 완료되었습니다!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
             
             // 회원가입 후 로그인 모드로 전환
             setState(() {
               _isSignUp = false;
             });
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('회원가입에 실패했습니다. 다시 시도해 주세요.'),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         }
       } else {
@@ -71,20 +106,42 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on AuthException catch (e) {
+      print('Auth 오류: ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_getAuthErrorMessage(e.message)),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
     } catch (e) {
+      print('일반 오류: $e');
+      String errorMessage = '오류가 발생했습니다';
+      
+      if (e.toString().contains('SocketException') || 
+          e.toString().contains('Connection failed')) {
+        errorMessage = '인터넷 연결을 확인해 주세요. Wi-Fi 또는 모바일 데이터가 활성화되어 있는지 확인하세요.';
+      } else if (e.toString().contains('Operation not permitted')) {
+        errorMessage = '네트워크 접근이 차단되었습니다. 앱을 재시작하거나 네트워크 설정을 확인해 주세요.';
+      } else if (e.toString().contains('timeout')) {
+        errorMessage = '연결 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('오류가 발생했습니다: $e'),
-            backgroundColor: Colors.red,
+            content: Text(errorMessage),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: '재시도',
+              textColor: Colors.white,
+              onPressed: () {
+                _handleAuth();
+              },
+            ),
           ),
         );
       }
@@ -97,17 +154,71 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _createUserProfile(User user) async {
+    try {
+      // 사용자 프로필이 이미 존재하는지 확인
+      final existingProfile = await _supabase
+          .from('user_profiles')
+          .select()
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (existingProfile == null) {
+        // 사용자 프로필 생성 (트랜잭션으로 처리)
+        await _supabase.from('user_profiles').insert({
+          'user_id': user.id,
+          'timezone': 'Asia/Seoul',
+          'language': 'ko',
+          'settings': {
+            'notifications_enabled': true,
+            'theme': 'system',
+            'backup_enabled': true,
+          },
+        });
+
+        // 사용자 통계 테이블 초기화
+        await _supabase.from('user_statistics').insert({
+          'user_id': user.id,
+          'total_moments': 0,
+          'total_media': 0,
+          'current_streak': 0,
+          'longest_streak': 0,
+          'avg_mood_score': 0.0,
+          'monthly_stats': {},
+        });
+        
+        print('사용자 프로필 생성 완료: ${user.id}');
+      } else {
+        print('기존 프로필 존재: ${user.id}');
+      }
+    } catch (e) {
+      print('프로필 생성 오류: $e');
+      // 프로필 생성 실패해도 회원가입은 성공으로 처리
+      // 나중에 앱 사용 중에 프로필을 다시 생성할 수 있음
+    }
+  }
+
   String _getAuthErrorMessage(String message) {
     if (message.contains('Invalid login credentials')) {
       return '이메일 또는 비밀번호가 올바르지 않습니다.';
     } else if (message.contains('Email not confirmed')) {
-      return '이메일 인증이 필요합니다.';
+      return '이메일 인증이 필요합니다. 메일함을 확인해 주세요.';
     } else if (message.contains('User already registered')) {
-      return '이미 가입된 이메일입니다.';
+      return '이미 가입된 이메일입니다. 로그인을 시도해 주세요.';
     } else if (message.contains('Password should be at least')) {
       return '비밀번호는 최소 6자 이상이어야 합니다.';
+    } else if (message.contains('Invalid email')) {
+      return '올바른 이메일 형식을 입력해 주세요.';
+    } else if (message.contains('Signup is disabled')) {
+      return '현재 회원가입이 비활성화되어 있습니다.';
+    } else if (message.contains('Unable to validate email address')) {
+      return '이메일 주소를 확인할 수 없습니다.';
+    } else if (message.contains('Password is too weak')) {
+      return '비밀번호가 너무 약합니다. 더 강한 비밀번호를 사용해 주세요.';
+    } else if (message.contains('rate limit')) {
+      return '너무 많은 시도가 있었습니다. 잠시 후 다시 시도해 주세요.';
     } else {
-      return message;
+      return '오류가 발생했습니다: $message';
     }
   }
 
@@ -118,7 +229,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // 익명 로그인 시도
-      await _supabase.auth.signInAnonymously();
+      final response = await _supabase.auth.signInAnonymously();
+      
+      // 익명 사용자 프로필 생성
+      if (response.user != null) {
+        await _createUserProfile(response.user!);
+      }
       
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/main');

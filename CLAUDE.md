@@ -49,14 +49,19 @@ lib/
 │   ├── moment_service.dart            # 일기 CRUD 서비스
 │   └── database_migration_service.dart # DB 마이그레이션
 ├── screens/
+│   ├── auth/
+│   │   └── login_screen.dart          # 로그인/회원가입 화면 ✅
 │   ├── home_screen.dart               # 홈 화면
 │   ├── timeline_screen.dart           # 타임라인 화면
 │   ├── info_screen.dart               # 정보 화면
 │   ├── settings_screen.dart           # 설정 화면
 │   └── admin/
 │       └── database_admin_screen.dart # 데이터베이스 관리
-└── utils/
-    └── database_setup_helper.dart     # DB 설정 유틸리티
+├── utils/
+│   ├── connectivity_helper.dart       # 네트워크 연결 확인 ✅
+│   └── database_setup_helper.dart     # DB 설정 유틸리티
+└── widgets/
+    └── auth_wrapper.dart              # 인증 상태 관리 ✅
 
 assets/
 ├── images/                            # 이미지 에셋
@@ -174,33 +179,76 @@ flutter build appbundle
 
 ## 📱 화면별 기능
 
-### 1. 홈 화면 (`home_screen.dart`)
+### 1. 인증 화면 (`auth/login_screen.dart`) - ✅ 완성 (2025-07-01)
+- 이메일/비밀번호 로그인
+- 회원가입 (자동 프로필 생성)
+- 게스트 로그인 (익명 인증)
+- 네트워크 연결 상태 확인
+- 사용자 친화적 오류 처리
+
+### 2. 홈 화면 (`home_screen.dart`)
 - 오늘의 일기 작성
 - 최근 일기 미리보기
 - 빠른 기분 기록
 
-### 2. 타임라인 화면 (`timeline_screen.dart`)
+### 3. 타임라인 화면 (`timeline_screen.dart`)
 - 시간순 일기 목록
 - 검색 및 필터링
 - 무한 스크롤 페이징
 
-### 3. 정보 화면 (`info_screen.dart`)
+### 4. 정보 화면 (`info_screen.dart`)
 - 유용한 링크 관리
 - 외부 콘텐츠 연동
 - 개인 북마크
 
-### 4. 설정 화면 (`settings_screen.dart`)
+### 5. 설정 화면 (`settings_screen.dart`)
 - 앱 환경 설정
 - 알림 설정
 - 백업/복원
 - 개발자 도구 접근
 
-### 5. 데이터베이스 관리 (`database_admin_screen.dart`)
+### 6. 데이터베이스 관리 (`database_admin_screen.dart`)
 - 스키마 생성 및 관리
 - 마이그레이션 실행
 - 데이터베이스 상태 모니터링
 
 ## 🔧 주요 서비스
+
+### AuthWrapper (`widgets/auth_wrapper.dart`) - ✅ 완성 (2025-07-01)
+```dart
+// 인증 상태 자동 관리
+// - 로그인 상태 확인
+// - 인증 상태 변화 리스닝
+// - 로그인/로그아웃 화면 자동 전환
+// - 로딩 상태 처리
+```
+
+### LoginScreen (`screens/auth/login_screen.dart`) - ✅ 완성 (2025-07-01)
+```dart
+// 회원가입
+await _supabase.auth.signUp(email: email, password: password);
+
+// 로그인
+await _supabase.auth.signInWithPassword(email: email, password: password);
+
+// 게스트 로그인
+await _supabase.auth.signInAnonymously();
+
+// 자동 프로필 생성
+await _createUserProfile(user);
+```
+
+### ConnectivityHelper (`utils/connectivity_helper.dart`) - ✅ 신규 (2025-07-01)
+```dart
+// 인터넷 연결 확인
+final hasInternet = await ConnectivityHelper.checkInternetConnection();
+
+// Supabase 서버 연결 확인
+final hasSupabase = await ConnectivityHelper.checkSupabaseConnection();
+
+// 연결 문제 다이얼로그 표시
+ConnectivityHelper.showConnectionDialog(context, onRetry);
+```
 
 ### MomentService (`moment_service.dart`)
 ```dart
@@ -293,6 +341,12 @@ await DatabaseSetupHelper.checkDatabaseStatus();
    - 네트워크 연결 시 자동으로 온라인 모드 전환
    - 오프라인 상태에서는 데이터 저장 제한
 
+4. **macOS "Operation not permitted" 오류 (2025-07-01 해결)**
+   - macOS entitlements 파일에 네트워크 클라이언트 권한 추가
+   - iOS Info.plist에 App Transport Security 예외 설정
+   - ConnectivityHelper를 통한 네트워크 연결 상태 사전 확인
+   - 방화벽/VPN 설정 확인 필요
+
 ### 데이터베이스 문제
 1. **테이블 없음 오류**
    - 앱 내 데이터베이스 관리에서 스키마 설정 실행
@@ -310,6 +364,7 @@ await DatabaseSetupHelper.checkDatabaseStatus();
 - ✅ 일기 CRUD 기능
 - ✅ 멀티미디어 지원
 - ✅ 데이터베이스 스키마 완성
+- ✅ 사용자 인증 시스템 완성 (2025-07-01)
 
 ### Phase 2: 고급 기능
 - 🔄 실시간 동기화
@@ -344,7 +399,36 @@ await DatabaseSetupHelper.checkDatabaseStatus();
 
 ---
 
-**마지막 업데이트**: 2024-06-29  
-**버전**: 1.0.0  
+## 📋 개발 로그
+
+### 2025-07-01 업데이트
+#### ✅ 완성된 기능:
+- **사용자 인증 시스템 완전 구현**
+  - 이메일/비밀번호 회원가입 및 로그인
+  - 게스트 로그인 (익명 인증)
+  - 자동 사용자 프로필 생성 (`user_profiles`, `user_statistics` 테이블)
+  - 인증 상태 자동 관리 (`AuthWrapper`)
+
+#### 🔧 해결된 문제:
+- **macOS "Operation not permitted" 네트워크 오류**
+  - macOS entitlements 파일에 `com.apple.security.network.client` 권한 추가
+  - iOS Info.plist에 App Transport Security 예외 설정
+  - `ConnectivityHelper` 클래스로 네트워크 연결 상태 사전 확인
+  - 사용자 친화적인 오류 메시지 및 재시도 기능
+
+#### 📝 추가된 파일:
+- `lib/screens/auth/login_screen.dart` - 통합 인증 화면
+- `lib/widgets/auth_wrapper.dart` - 인증 상태 관리
+- `lib/utils/connectivity_helper.dart` - 네트워크 연결 확인
+
+#### 🛠️ 수정된 설정:
+- `macos/Runner/DebugProfile.entitlements` - 네트워크 클라이언트 권한
+- `macos/Runner/Release.entitlements` - 네트워크 클라이언트 권한  
+- `ios/Runner/Info.plist` - App Transport Security 예외
+
+---
+
+**마지막 업데이트**: 2025-07-01  
+**버전**: 1.1.0  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

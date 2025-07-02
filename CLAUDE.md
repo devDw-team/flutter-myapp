@@ -501,6 +501,12 @@ await DatabaseSetupHelper.checkDatabaseStatus();
   - `AuthWrapper` 자동 인증 상태 감지 최적화
   - iOS와 macOS 모든 플랫폼에서 일관된 로그아웃 동작
 
+- **타임라인 삭제 기능 완전 구현**
+  - 각 일기 카드에 세련된 더보기 아이콘 (우상단) 추가
+  - 삭제 확인 다이얼로그로 안전한 삭제 프로세스
+  - 데이터베이스와 Storage 이미지 파일 동시 삭제
+  - 실시간 UI 업데이트 및 사용자 피드백 (성공/오류 메시지)
+
 #### 🔧 해결된 문제:
 - **iOS 시뮬레이터 라우팅 오류**
   - `/login` 라우트 미정의로 인한 `pushNamedAndRemoveUntil` 실패
@@ -511,9 +517,48 @@ await DatabaseSetupHelper.checkDatabaseStatus();
   - macOS에서는 정상 작동하지만 iOS에서 실패하는 로그아웃 문제
   - 플랫폼별 네비게이션 동작 차이점 해결
 
+- **타임라인 삭제 UI 가시성**
+  - Hot Reload로 인한 UI 업데이트 지연 문제
+  - Hot Restart를 통한 완전한 위젯 트리 재구성으로 해결
+
 #### 🔧 수정된 파일:
 - `lib/main.dart` - `/login` 라우트 추가
 - `lib/screens/settings_screen.dart` - 로그아웃 로직 전면 개선
+- `lib/screens/timeline_screen.dart` - 삭제 기능 및 UI 완전 구현
+
+#### 🛠️ 삭제 기능 상세 구현:
+```dart
+// 삭제 버튼 UI (더보기 아이콘)
+GestureDetector(
+  onTap: () => _showDeleteConfirmation(moment),
+  child: Container(
+    padding: const EdgeInsets.all(6),
+    decoration: BoxDecoration(
+      color: Colors.grey.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Icon(
+      Icons.more_vert,
+      color: Colors.grey,
+      size: 16,
+    ),
+  ),
+)
+
+// Storage 이미지 삭제
+if (moment.imagePath != null && moment.imagePath!.isNotEmpty) {
+  await _supabase.storage
+      .from('moment-media')
+      .remove([moment.imagePath!]);
+}
+
+// 데이터베이스 기록 삭제
+await _supabase
+    .from('moment_entries')
+    .delete()
+    .eq('id', moment.id!)
+    .eq('user_id', _supabase.auth.currentUser!.id);
+```
 
 #### 🛠️ 개선된 로그아웃 플로우:
 1. **로그아웃 버튼 클릭** → 확인 다이얼로그 표시
@@ -539,6 +584,8 @@ flutter run -d 92EB6D7D-38FE-4030-97A7-541BAD25BC7D
 - **완벽한 로그아웃 플로우**: 모든 플랫폼에서 일관된 동작
 - **즉각적인 화면 전환**: 로그아웃 후 즉시 로그인 화면 표시
 - **안정적인 상태 관리**: 네비게이션 스택 완전 초기화
+- **안전한 삭제 시스템**: 확인 다이얼로그 + 완전한 데이터 정리
+- **세련된 UI/UX**: 직관적인 더보기 아이콘 + 터치 영역 최적화
 
 ---
 

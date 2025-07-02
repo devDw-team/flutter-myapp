@@ -93,6 +93,86 @@ class _TimelineScreenState extends State<TimelineScreen> {
     }
   }
 
+  Future<void> _deleteMoment(MomentEntry moment) async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      // 1. Storage에서 이미지 삭제 (있는 경우)
+      if (moment.imagePath != null && moment.imagePath!.isNotEmpty) {
+        await _supabase.storage
+            .from('moment-media')
+            .remove([moment.imagePath!]);
+        print('이미지 삭제 완료: ${moment.imagePath}');
+      }
+
+      // 2. 데이터베이스에서 기록 삭제
+      await _supabase
+          .from('moment_entries')
+          .delete()
+          .eq('id', moment.id!)
+          .eq('user_id', _supabase.auth.currentUser!.id);
+
+      // 3. 로컬 리스트에서 제거
+      setState(() {
+        _moments.removeWhere((m) => m.id == moment.id);
+        _isLoading = false;
+      });
+
+      // 4. 성공 메시지
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('기록이 삭제되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('삭제 오류: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('삭제 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDeleteConfirmation(MomentEntry moment) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('기록 삭제'),
+          content: const Text('이 기록을 삭제하시겠습니까?\n삭제된 기록은 복구할 수 없습니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deleteMoment(moment);
+              },
+              child: const Text(
+                '삭제',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -188,6 +268,23 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                         DateFormat('E HH:mm').format(moment.createdAt),
                                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                           color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      // 더 작고 세련된 삭제 버튼
+                                      GestureDetector(
+                                        onTap: () => _showDeleteConfirmation(moment),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            Icons.more_vert,
+                                            color: Colors.grey,
+                                            size: 16,
+                                          ),
                                         ),
                                       ),
                                     ],

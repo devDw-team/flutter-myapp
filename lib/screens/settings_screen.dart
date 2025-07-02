@@ -18,8 +18,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await _supabase.auth.signOut();
       if (mounted) {
+        // 모든 화면을 제거하고 루트로 이동하여 AuthWrapper가 처리하도록 함
         Navigator.of(context).pushNamedAndRemoveUntil(
-          '/login',
+          '/',
           (route) => false,
         );
       }

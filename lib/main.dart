@@ -39,6 +39,7 @@ class OneMomentApp extends StatelessWidget {
       home: const AuthWrapper(child: MainScreen()),
       routes: {
         '/main': (context) => const MainScreen(),
+        '/login': (context) => const AuthWrapper(child: MainScreen()),
       },
     );
   }

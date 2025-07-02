@@ -493,9 +493,56 @@ await DatabaseSetupHelper.checkDatabaseStatus();
 - **성능 최적화**: 비동기 처리 + 에러 핸들링 + 로딩 상태
 - **개발 효율성**: MCP 도구 활용 + 상세 로깅 + 체계적 디버깅
 
+### 2025-07-02 업데이트 (저녁)
+#### ✅ 완성된 기능:
+- **iOS 시뮬레이터 로그아웃 기능 완전 수정**
+  - 라우팅 오류 해결: `/login` 라우트 추가
+  - 네비게이션 스택 관리 개선: `pushNamedAndRemoveUntil('/', ...)` 적용
+  - `AuthWrapper` 자동 인증 상태 감지 최적화
+  - iOS와 macOS 모든 플랫폼에서 일관된 로그아웃 동작
+
+#### 🔧 해결된 문제:
+- **iOS 시뮬레이터 라우팅 오류**
+  - `/login` 라우트 미정의로 인한 `pushNamedAndRemoveUntil` 실패
+  - 단순 `Navigator.pop()` 사용 시 화면 전환 불완전 문제
+  - 네비게이션 스택에 잔존하는 메인 화면들로 인한 `AuthWrapper` 오작동
+
+- **크로스 플랫폼 호환성**
+  - macOS에서는 정상 작동하지만 iOS에서 실패하는 로그아웃 문제
+  - 플랫폼별 네비게이션 동작 차이점 해결
+
+#### 🔧 수정된 파일:
+- `lib/main.dart` - `/login` 라우트 추가
+- `lib/screens/settings_screen.dart` - 로그아웃 로직 전면 개선
+
+#### 🛠️ 개선된 로그아웃 플로우:
+1. **로그아웃 버튼 클릭** → 확인 다이얼로그 표시
+2. **Supabase 인증 해제** → `signOut()` 실행
+3. **네비게이션 스택 클리어** → `pushNamedAndRemoveUntil('/', (route) => false)`
+4. **AuthWrapper 자동 감지** → 인증 상태 변화 감지
+5. **로그인 화면 표시** → `LoginScreen` 자동 렌더링
+
+#### 📱 iOS 시뮬레이터 실행 가이드:
+```bash
+# 시뮬레이터 부팅
+xcrun simctl boot 92EB6D7D-38FE-4030-97A7-541BAD25BC7D
+
+# 시뮬레이터 앱 열기
+open -a Simulator
+
+# Flutter 앱 실행
+cd /Users/kimsangdae/Desktop/cursor_project/flutter-myapp
+flutter run -d 92EB6D7D-38FE-4030-97A7-541BAD25BC7D
+```
+
+#### 💡 사용자 경험 개선:
+- **완벽한 로그아웃 플로우**: 모든 플랫폼에서 일관된 동작
+- **즉각적인 화면 전환**: 로그아웃 후 즉시 로그인 화면 표시
+- **안정적인 상태 관리**: 네비게이션 스택 완전 초기화
+
 ---
 
 **마지막 업데이트**: 2025-07-02  
-**버전**: 1.3.0  
+**버전**: 1.3.1  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

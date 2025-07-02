@@ -110,22 +110,30 @@ class _HomeScreenState extends State<HomeScreen> {
         imagePath = fileName;
       }
 
-      // MomentEntry 객체 생성
-      final momentEntry = MomentEntry(
-        id: '', // Supabase에서 자동 생성
-        userId: user.id,
-        title: '오늘의 기록', // 기본 제목
-        content: _textController.text.trim(),
-        imagePath: imagePath,
-        latitude: _photoLocation?['latitude'],
-        longitude: _photoLocation?['longitude'],
-        locationName: null, // 나중에 geocoding으로 추가 가능
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      // Supabase를 사용하여 데이터베이스에 저장
+      final insertData = <String, dynamic>{
+        'user_id': user.id,
+        'title': '오늘의 기록',
+        'content': _textController.text.trim(),
+        'moment_date': DateTime.now().toIso8601String(),
+      };
 
-      // 데이터베이스에 저장
-      await MomentService.createMoment(momentEntry);
+      // 선택적 필드들 추가
+      if (imagePath != null) {
+        insertData['image_path'] = imagePath;
+      }
+      if (_photoLocation?['latitude'] != null) {
+        insertData['latitude'] = _photoLocation!['latitude'];
+      }
+      if (_photoLocation?['longitude'] != null) {
+        insertData['longitude'] = _photoLocation!['longitude'];
+      }
+
+      final response = await _supabase
+          .from('moment_entries')
+          .insert(insertData)
+          .select()
+          .single();
 
       // 성공 메시지
       if (mounted) {
@@ -145,11 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       // 에러 처리
+      print('저장 오류 상세 정보: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('저장 중 오류가 발생했습니다: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

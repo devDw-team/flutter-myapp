@@ -18,11 +18,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await _supabase.auth.signOut();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('로그아웃되었습니다.'),
-            backgroundColor: Colors.green,
-          ),
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
         );
       }
     } catch (e) {
@@ -128,99 +126,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           
-          const Divider(),
-          
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              '데이터',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          
-          ListTile(
-            leading: const Icon(Icons.backup),
-            title: const Text('백업'),
-            subtitle: const Text('데이터를 백업합니다'),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('백업 기능은 준비 중입니다.')),
-              );
-            },
-          ),
-          
-          ListTile(
-            leading: const Icon(Icons.restore),
-            title: const Text('복원'),
-            subtitle: const Text('백업된 데이터를 복원합니다'),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('복원 기능은 준비 중입니다.')),
-              );
-            },
-          ),
-          
-          ListTile(
-            leading: const Icon(Icons.delete_forever),
-            title: const Text('전체 데이터 삭제'),
-            subtitle: const Text('모든 기록을 삭제합니다'),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return AlertDialog(
-                    title: const Text('전체 데이터 삭제'),
-                    content: const Text('정말로 모든 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('취소'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('데이터 삭제 기능은 준비 중입니다.')),
-                          );
-                        },
-                        child: const Text('삭제'),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-          
-          const Divider(),
-          
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              '개발자 도구',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          
-          ListTile(
-            leading: const Icon(Icons.storage),
-            title: const Text('데이터베이스 관리'),
-            subtitle: const Text('데이터베이스 스키마 설정 및 관리'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DatabaseAdminScreen(),
-                ),
-              );
-            },
-          ),
           
           const Divider(),
           

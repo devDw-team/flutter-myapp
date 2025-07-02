@@ -426,9 +426,76 @@ await DatabaseSetupHelper.checkDatabaseStatus();
 - `macos/Runner/Release.entitlements` - 네트워크 클라이언트 권한  
 - `ios/Runner/Info.plist` - App Transport Security 예외
 
+### 2025-07-02 업데이트 (오전)
+#### ✅ 완성된 기능:
+- **설정 화면 UI/UX 개선**
+  - 데이터 관리 메뉴 숨김처리 (백업, 복원, 전체 데이터 삭제)
+  - 개발자 도구 메뉴 숨김처리 (데이터베이스 관리)
+  - 사용자 친화적인 설정 화면으로 단순화
+
+- **로그아웃 기능 완전 구현**
+  - 로그아웃 버튼 클릭 시 Supabase 인증 해제
+  - 로그아웃 성공 시 자동으로 로그인 화면 이동
+  - 모든 네비게이션 스택 클리어로 깔끔한 화면 전환
+  - `AuthWrapper`를 통한 인증 상태 자동 관리
+
+#### 🔧 수정된 파일:
+- `lib/screens/settings_screen.dart` - 불필요한 메뉴 제거 및 로그아웃 로직 개선
+
+#### 💡 사용자 경험 개선:
+- 설정 화면이 더 깔끔하고 사용하기 쉬워짐
+- 개발자용 기능들을 숨겨 일반 사용자에게 혼란 방지
+- 로그아웃 시 명확한 피드백과 자동 화면 전환
+
+### 2025-07-02 업데이트 (오후)
+#### ✅ 완성된 기능:
+- **메인 화면 기록 저장 시스템 완전 구현**
+  - Supabase MCP를 활용한 직접 데이터베이스 연동
+  - 이미지 업로드와 텍스트 저장을 분리하여 안정성 향상
+  - 동적 데이터 구성으로 NULL 값 처리 문제 해결
+  - 상세한 에러 로깅으로 디버깅 효율성 증대
+
+- **Supabase Storage 시스템 구축**
+  - `moment-media` 버킷 생성 (50MB 제한, 이미지 전용)
+  - Row Level Security (RLS) 정책 설정으로 보안 강화
+  - 인증된 사용자만 접근 가능한 Private 버킷 구조
+  - 사용자별 폴더 구조: `moments/{user_id}/{timestamp}.jpg`
+
+- **타임라인 이미지 표시 시스템**
+  - Private 버킷용 Signed URL 생성 방식 도입
+  - `FutureBuilder`를 활용한 비동기 이미지 로딩
+  - 1시간 유효한 임시 URL로 보안과 성능 최적화
+  - 포괄적인 에러 처리 및 로딩 상태 표시
+
+#### 🔧 해결된 문제:
+- **Row Level Security 정책 오류**
+  - `user_statistics` 테이블 INSERT 정책 누락 문제 해결
+  - `moment_entries` 저장 시 트리거 연동 정상화
+  - Storage 객체 접근 권한 정책 최적화
+
+- **Storage 연동 문제**
+  - 버킷 미존재 오류 (404) → 버킷 생성으로 해결
+  - 권한 거부 오류 (403) → RLS 정책 설정으로 해결
+  - 이미지 로딩 실패 → Signed URL 방식으로 해결
+
+#### 🔧 수정된 파일:
+- `lib/screens/home_screen.dart` - 저장 로직 최적화 및 MCP 연동
+- `lib/screens/timeline_screen.dart` - 이미지 로딩 시스템 전면 개선
+
+#### 🛠️ 데이터베이스 구조:
+- **Storage 버킷**: `moment-media` (Private, 이미지 전용)
+- **RLS 정책**: 사용자별 데이터 격리 및 보안 보장
+- **트리거**: `moment_entries` 저장 시 `user_statistics` 자동 업데이트
+
+#### 💡 기술적 성과:
+- **완전한 멀티미디어 일기 시스템**: 텍스트 + 이미지 + 위치 정보
+- **보안 강화**: Private Storage + RLS 정책 + Signed URL
+- **성능 최적화**: 비동기 처리 + 에러 핸들링 + 로딩 상태
+- **개발 효율성**: MCP 도구 활용 + 상세 로깅 + 체계적 디버깅
+
 ---
 
-**마지막 업데이트**: 2025-07-01  
-**버전**: 1.1.0  
+**마지막 업데이트**: 2025-07-02  
+**버전**: 1.3.0  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

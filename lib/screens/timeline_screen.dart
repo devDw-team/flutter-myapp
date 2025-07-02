@@ -40,8 +40,16 @@ class _TimelineScreenState extends State<TimelineScreen> {
         return;
       }
 
-      // 데이터베이스에서 일기 목록 가져오기
-      final moments = await MomentService.getAllMoments();
+      // Supabase MCP를 사용하여 데이터베이스에서 일기 목록 가져오기
+      final response = await _supabase
+          .from('moment_entries')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+      
+      final moments = (response as List)
+          .map((item) => MomentEntry.fromJson(item))
+          .toList();
       
       if (mounted) {
         setState(() {
@@ -72,10 +80,17 @@ class _TimelineScreenState extends State<TimelineScreen> {
     await _loadMoments();
   }
 
-  String _getImageUrl(String imagePath) {
-    return _supabase.storage
-        .from('moment-media')
-        .getPublicUrl(imagePath);
+  Future<String> _getImageUrl(String imagePath) async {
+    try {
+      // Private 버킷이므로 createSignedUrl을 사용해야 함
+      final signedUrl = await _supabase.storage
+          .from('moment-media')
+          .createSignedUrl(imagePath, 3600); // 1시간 유효한 서명된 URL
+      return signedUrl;
+    } catch (e) {
+      print('이미지 URL 생성 오류: $e');
+      return ''; // 빈 문자열 반환
+    }
   }
 
   @override
@@ -183,49 +198,96 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                   if (moment.imagePath != null && moment.imagePath!.isNotEmpty) ...[
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        _getImageUrl(moment.imagePath!),
-                                        width: double.infinity,
-                                        height: 200,
-                                        fit: BoxFit.cover,
-                                        loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null) return child;
-                                          return Container(
-                                            height: 200,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[300],
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Center(
-                                              child: CircularProgressIndicator(),
-                                            ),
-                                          );
-                                        },
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Container(
-                                            height: 200,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[300],
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.broken_image,
-                                                  size: 48,
-                                                  color: Colors.grey,
-                                                ),
-                                                SizedBox(height: 8),
-                                                Text(
-                                                  '이미지를 불러올 수 없습니다',
-                                                  style: TextStyle(
+                                      child: FutureBuilder<String>(
+                                        future: _getImageUrl(moment.imagePath!),
+                                        builder: (context, snapshot) {
+                                          if (snapshot.connectionState == ConnectionState.waiting) {
+                                            return Container(
+                                              height: 200,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[300],
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Center(
+                                                child: CircularProgressIndicator(),
+                                              ),
+                                            );
+                                          }
+                                          
+                                          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                                            return Container(
+                                              height: 200,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[300],
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.broken_image,
+                                                    size: 48,
                                                     color: Colors.grey,
-                                                    fontSize: 12,
                                                   ),
+                                                  SizedBox(height: 8),
+                                                  Text(
+                                                    '이미지를 불러올 수 없습니다',
+                                                    style: TextStyle(
+                                                      color: Colors.grey,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }
+                                          
+                                          return Image.network(
+                                            snapshot.data!,
+                                            width: double.infinity,
+                                            height: 200,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return Container(
+                                                height: 200,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[300],
+                                                  borderRadius: BorderRadius.circular(8),
                                                 ),
-                                              ],
-                                            ),
+                                                child: const Center(
+                                                  child: CircularProgressIndicator(),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              print('이미지 로딩 에러: $error');
+                                              return Container(
+                                                height: 200,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[300],
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: const Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.broken_image,
+                                                      size: 48,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    SizedBox(height: 8),
+                                                    Text(
+                                                      '이미지를 불러올 수 없습니다',
+                                                      style: TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
                                           );
                                         },
                                       ),

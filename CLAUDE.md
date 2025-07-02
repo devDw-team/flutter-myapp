@@ -587,9 +587,98 @@ flutter run -d 92EB6D7D-38FE-4030-97A7-541BAD25BC7D
 - **안전한 삭제 시스템**: 확인 다이얼로그 + 완전한 데이터 정리
 - **세련된 UI/UX**: 직관적인 더보기 아이콘 + 터치 영역 최적화
 
+### 2025-07-02 업데이트 (밤)
+#### ✅ 완성된 기능:
+- **정보 보관함 시스템 완전 구현**
+  - `useful_links` 테이블 생성 및 RLS 정책 설정
+  - 링크 목록 조회 및 실시간 새로고침
+  - 통합 검색 기능 (제목, 설명, 태그, 카테고리)
+  - 링크 등록 기능 (다이얼로그 기반)
+  - 안전한 삭제 기능 (확인 다이얼로그)
+
+#### 🗄️ 데이터베이스 스키마:
+```sql
+-- useful_links 테이블 구조
+CREATE TABLE useful_links (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    url TEXT NOT NULL,
+    category VARCHAR(100) DEFAULT 'general',
+    tags TEXT[] DEFAULT '{}',
+    is_favorite BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+#### 🔧 주요 기능 상세:
+**1. 링크 관리**
+- 제목, URL, 설명, 카테고리, 태그 지원
+- 즐겨찾기 기능으로 중요한 링크 구분
+- 사용자별 개인 데이터 완전 격리
+
+**2. 검색 및 필터링**
+- 실시간 통합 검색 (제목/설명/태그/카테고리)
+- 대소문자 구분 없는 스마트 검색
+- 검색 성능 최적화를 위한 GIN 인덱스
+
+**3. 사용자 인터페이스**
+- 현대적인 카드 기반 UI 디자인
+- 즐겨찾기 별표 아이콘 표시
+- 카테고리별 색상 구분 태그
+- 반응형 레이아웃 및 터치 최적화
+
+#### 🔧 수정된 파일:
+- `lib/models/useful_link.dart` - 링크 데이터 모델 (신규)
+- `lib/screens/info_screen.dart` - 정보 보관함 화면 완전 재구현
+
+#### 🛠️ 링크 추가 다이얼로그 구현:
+```dart
+// 링크 등록 폼 검증
+validator: (value) {
+  final uri = Uri.tryParse(value);
+  if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
+    return '올바른 URL을 입력해주세요.';
+  }
+  return null;
+}
+
+// 태그 자동 파싱
+final tags = _tagsController.text
+    .split(',')
+    .map((tag) => tag.trim())
+    .where((tag) => tag.isNotEmpty)
+    .toList();
+```
+
+#### 🛠️ 삭제 기능 구현:
+```dart
+// 안전한 삭제 프로세스
+await _supabase
+    .from('useful_links')
+    .delete()
+    .eq('id', link.id!)
+    .eq('user_id', _supabase.auth.currentUser!.id);
+
+// 로컬 상태 업데이트
+setState(() {
+  _links.removeWhere((l) => l.id == link.id);
+  _filterLinks();
+});
+```
+
+#### 💡 사용자 경험 개선:
+- **완전한 링크 관리**: 추가/조회/검색/삭제 전체 라이프사이클
+- **직관적인 UI**: 카드 기반 현대적 디자인
+- **실시간 피드백**: 로딩/성공/오류 상태 명확한 표시
+- **외부 링크 실행**: 브라우저에서 링크 자동 열기
+- **데이터 검증**: 폼 입력 검증 및 URL 유효성 검사
+
 ---
 
 **마지막 업데이트**: 2025-07-02  
-**버전**: 1.3.1  
+**버전**: 1.4.0  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

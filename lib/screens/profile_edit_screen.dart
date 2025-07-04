@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:convert';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -58,6 +59,24 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           
           if (response['birth_date'] != null) {
             _selectedBirthDate = DateTime.parse(response['birth_date']);
+          }
+
+          // 기존 프로필 이미지 설정
+          if (response['settings'] != null) {
+            try {
+              Map<String, dynamic> settings;
+              if (response['settings'] is String) {
+                settings = jsonDecode(response['settings']);
+              } else {
+                settings = response['settings'] as Map<String, dynamic>;
+              }
+              
+              if (settings['profile_image'] != null) {
+                _currentProfileImageUrl = settings['profile_image'];
+              }
+            } catch (e) {
+              print('프로필 이미지 설정 파싱 오류: $e');
+            }
           }
           
           _isLoadingProfile = false;
@@ -125,23 +144,85 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  Future<String> _getProfileImageUrl(String imagePath) async {
+    try {
+      print('프로필 이미지 URL 생성 시도: $imagePath');
+      
+      // 올바른 버킷 결정
+      String bucketName = 'profile-images';
+      if (imagePath.startsWith('profiles/')) {
+        bucketName = 'moment-media';
+      }
+      
+      print('사용할 버킷: $bucketName');
+      
+      // 직접 Signed URL 생성 시도
+      final signedUrl = await _supabase.storage
+          .from(bucketName)
+          .createSignedUrl(imagePath, 3600); // 1시간 유효
+      
+      print('Signed URL 생성 성공: $signedUrl');
+      return signedUrl;
+    } catch (e) {
+      print('프로필 이미지 URL 생성 오류: $e');
+      throw e;
+    }
+  }
+
   Future<String?> _uploadImage() async {
     if (_selectedImage == null) return null;
 
     try {
       final user = _supabase.auth.currentUser;
-      if (user == null) return null;
+      if (user == null) {
+        print('사용자 정보가 없습니다');
+        return null;
+      }
 
-      final fileName = 'profile_${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final filePath = 'profiles/$fileName';
+      print('사용자 ID: ${user.id}');
 
-      await _supabase.storage
-          .from('moment-media')
+      // 기존 이미지가 있다면 삭제 (파일이 실제로 존재하는 경우에만)
+      if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty) {
+        try {
+          print('기존 이미지 삭제 시도: $_currentProfileImageUrl');
+          // 기존 파일이 moment-media에 있는지 profile-images에 있는지 확인
+          String bucketToDelete = 'moment-media';
+          if (_currentProfileImageUrl!.contains('profile-images/') || !_currentProfileImageUrl!.startsWith('profiles/')) {
+            bucketToDelete = 'profile-images';
+          }
+          
+          await _supabase.storage
+              .from(bucketToDelete)
+              .remove([_currentProfileImageUrl!]);
+          print('기존 이미지 삭제 성공');
+        } catch (e) {
+          print('기존 이미지 삭제 오류 (파일이 없을 수 있음): $e');
+        }
+      }
+
+      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = '${user.id}/$fileName';
+
+      print('이미지 업로드 시작: $filePath');
+      print('파일 크기: ${await _selectedImage!.length()} bytes');
+      
+      final uploadResult = await _supabase.storage
+          .from('profile-images')
           .upload(filePath, _selectedImage!);
 
+      print('이미지 업로드 성공: $filePath');
+      print('업로드 결과: $uploadResult');
       return filePath;
     } catch (e) {
       print('이미지 업로드 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('이미지 업로드 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return null;
     }
   }
@@ -162,6 +243,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       String? imagePath;
       if (_selectedImage != null) {
         imagePath = await _uploadImage();
+        if (imagePath != null) {
+          print('새 이미지 업로드 성공: $imagePath');
+        } else {
+          print('이미지 업로드 실패, 기존 이미지 유지');
+        }
       }
 
       final profileData = {
@@ -173,14 +259,34 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         'updated_at': DateTime.now().toIso8601String(),
       };
 
+      // settings를 JSON 문자열로 저장
+      Map<String, dynamic> settings = {};
+      
+      // 새 이미지가 성공적으로 업로드된 경우
       if (imagePath != null) {
-        profileData['settings'] = '{"profile_image": "$imagePath"}';
+        settings['profile_image'] = imagePath;
+        print('새 이미지 경로 저장: $imagePath');
+      } 
+      // 새 이미지 업로드가 없거나 실패한 경우 기존 이미지 유지
+      else if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty) {
+        settings['profile_image'] = _currentProfileImageUrl;
+        print('기존 이미지 경로 유지: $_currentProfileImageUrl');
+      }
+      
+      if (settings.isNotEmpty) {
+        profileData['settings'] = jsonEncode(settings);
+        print('저장할 settings: ${jsonEncode(settings)}');
+      } else {
+        print('저장할 이미지 정보 없음');
       }
 
+      print('프로필 데이터 저장 시도: $profileData');
+      
       await _supabase
           .from('user_profiles')
-          .upsert(profileData)
-          .eq('user_id', user.id);
+          .upsert(profileData);
+      
+      print('프로필 저장 완료');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -265,11 +371,33 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                   fit: BoxFit.cover,
                                 ),
                               )
-                            : const Icon(
-                                Icons.add_a_photo,
-                                size: 40,
-                                color: Colors.grey,
-                              ),
+                            : _currentProfileImageUrl != null
+                                ? ClipOval(
+                                    child: FutureBuilder<String>(
+                                      future: _getProfileImageUrl(_currentProfileImageUrl!),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.hasData) {
+                                          return Image.network(
+                                            snapshot.data!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return const Icon(
+                                                Icons.account_circle,
+                                                size: 40,
+                                                color: Colors.grey,
+                                              );
+                                            },
+                                          );
+                                        }
+                                        return const CircularProgressIndicator();
+                                      },
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.add_a_photo,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
                       ),
                     ),
                     const SizedBox(height: 8),

@@ -55,6 +55,7 @@ lib/
 │   ├── timeline_screen.dart           # 타임라인 화면
 │   ├── info_screen.dart               # 정보 화면
 │   ├── settings_screen.dart           # 설정 화면
+│   ├── profile_edit_screen.dart       # 프로필 편집 화면 ✅
 │   └── admin/
 │       └── database_admin_screen.dart # 데이터베이스 관리
 ├── utils/
@@ -204,10 +205,18 @@ flutter build appbundle
 ### 5. 설정 화면 (`settings_screen.dart`)
 - 앱 환경 설정
 - 알림 설정
-- 백업/복원
-- 개발자 도구 접근
+- 프로필 이미지 표시
+- 프로필 편집 메뉴
+- 로그아웃 기능
 
-### 6. 데이터베이스 관리 (`database_admin_screen.dart`)
+### 6. 프로필 편집 화면 (`profile_edit_screen.dart`) - ✅ 완성 (2025-07-04)
+- 프로필 이미지 업로드 및 변경
+- 자기소개 편집 (200자 제한)
+- 생년월일 선택 (달력 위젯)
+- 시간대 및 언어 설정
+- 계정 정보 표시
+
+### 7. 데이터베이스 관리 (`database_admin_screen.dart`)
 - 스키마 생성 및 관리
 - 마이그레이션 실행
 - 데이터베이스 상태 모니터링
@@ -596,6 +605,85 @@ flutter run -d 92EB6D7D-38FE-4030-97A7-541BAD25BC7D
   - 링크 등록 기능 (다이얼로그 기반)
   - 안전한 삭제 기능 (확인 다이얼로그)
 
+### 2025-07-04 업데이트
+#### ✅ 완성된 기능:
+- **프로필 편집 시스템 완전 구현**
+  - `profile_edit_screen.dart` 신규 생성
+  - 사용자 정보 편집 기능 (자기소개, 생년월일, 시간대, 언어)
+  - 프로필 이미지 업로드 및 관리 시스템
+  - 설정 화면에 프로필 편집 메뉴 추가
+
+- **프로필 이미지 저장소 시스템**
+  - `profile-images` 전용 Storage 버킷 생성
+  - Row Level Security (RLS) 정책 적용
+  - 사용자별 폴더 구조: `{user_id}/{filename}.jpg`
+  - Signed URL 기반 이미지 표시 (1시간 유효)
+
+- **통합 프로필 관리**
+  - 설정 화면에서 프로필 이미지 표시
+  - 프로필 편집 후 자동 새로고침
+  - 기존 이미지와 새 이미지 자동 관리
+  - `user_profiles.settings` JSON 필드 활용
+
+#### 🔧 해결된 문제:
+- **Storage 버킷 및 RLS 정책 문제**
+  - `profile-images` 버킷 생성 및 정책 설정
+  - 인증된 사용자 기반 접근 제어 구현
+  - FileObject 타입 오류 수정 (`file['name']` → `file.name`)
+
+- **프로필 데이터 저장 문제**
+  - `upsert` 쿼리 수정 (`.eq()` 조건 제거)
+  - JSON 데이터 타입 처리 개선 (`jsonEncode/jsonDecode`)
+  - 이미지 업로드 실패 시 기존 이미지 유지 로직
+
+- **이미지 표시 및 로딩 문제**
+  - 버킷 자동 감지 로직 (기존/신규 파일 구분)
+  - Graceful 에러 처리 (파일 없을 시 기본 아이콘 표시)
+  - 잘못된 프로필 이미지 정보 자동 정리
+
+#### 📝 추가된 파일:
+- `lib/screens/profile_edit_screen.dart` - 프로필 편집 화면
+
+#### 🔧 수정된 파일:
+- `lib/screens/settings_screen.dart` - 프로필 이미지 표시 및 편집 메뉴 추가
+
+#### 🛠️ Storage 구조:
+```
+profile-images/          # 프로필 이미지 전용 버킷
+├── {user_id}/
+│   ├── profile_timestamp1.jpg
+│   └── profile_timestamp2.jpg
+└── RLS 정책: 사용자별 데이터 격리
+```
+
+#### 🛠️ 프로필 편집 화면 주요 기능:
+```dart
+// 프로필 이미지 업로드
+Future<String?> _uploadImage() async {
+  // 기존 이미지 삭제
+  // 새 이미지 업로드 to profile-images 버킷
+  // 사용자별 폴더 구조: {user_id}/profile_timestamp.jpg
+}
+
+// 프로필 데이터 저장
+final profileData = {
+  'user_id': user.id,
+  'bio': bio,
+  'birth_date': birthDate,
+  'timezone': timezone,
+  'language': language,
+  'settings': jsonEncode({'profile_image': imagePath}),
+};
+await _supabase.from('user_profiles').upsert(profileData);
+```
+
+#### 💡 사용자 경험 개선:
+- **완전한 프로필 관리**: 정보 편집 + 이미지 업로드 + 실시간 표시
+- **직관적인 UI**: Material Design 기반 프로필 편집 폼
+- **안정적인 데이터 처리**: 업로드 실패 시 기존 데이터 유지
+- **보안 강화**: 사용자별 데이터 격리 및 이미지 접근 제어
+- **성능 최적화**: Signed URL 캐싱 및 비동기 이미지 로딩
+
 #### 🗄️ 데이터베이스 스키마:
 ```sql
 -- useful_links 테이블 구조
@@ -678,7 +766,7 @@ setState(() {
 
 ---
 
-**마지막 업데이트**: 2025-07-02  
-**버전**: 1.4.0  
+**마지막 업데이트**: 2025-07-04  
+**버전**: 1.5.0  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

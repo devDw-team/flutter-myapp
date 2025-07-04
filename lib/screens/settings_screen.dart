@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin/database_admin_screen.dart';
 import 'profile_edit_screen.dart';
+import 'dart:convert';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +15,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   bool _darkMode = false;
   final _supabase = Supabase.instance.client;
+  String? _profileImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileImage();
+  }
+
+  Future<void> _clearInvalidProfileImage() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      print('잘못된 프로필 이미지 정보 정리 중...');
+      
+      // 프로필에서 이미지 정보 제거
+      await _supabase
+          .from('user_profiles')
+          .update({'settings': '{}'})
+          .eq('user_id', user.id);
+      
+      print('프로필 이미지 정보 정리 완료');
+    } catch (e) {
+      print('프로필 이미지 정리 오류: $e');
+    }
+  }
+
+  Future<void> _loadProfileImage() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        print('사용자 정보가 없습니다');
+        return;
+      }
+
+      print('프로필 이미지 로드 시작: ${user.id}');
+
+      final response = await _supabase
+          .from('user_profiles')
+          .select('settings')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      print('프로필 응답: $response');
+
+      if (response != null && response['settings'] != null) {
+        try {
+          Map<String, dynamic> settings;
+          if (response['settings'] is String) {
+            settings = jsonDecode(response['settings']);
+          } else {
+            settings = response['settings'] as Map<String, dynamic>;
+          }
+          
+          print('설정 파싱 성공: $settings');
+          
+          if (settings['profile_image'] != null) {
+            final imagePath = settings['profile_image'] as String;
+            print('이미지 경로: $imagePath');
+            
+            // 올바른 버킷 결정 (기존 파일은 moment-media에 있을 수 있음)
+            String bucketName = 'profile-images';
+            if (imagePath.startsWith('profiles/')) {
+              bucketName = 'moment-media';
+            }
+            
+            print('사용할 버킷: $bucketName');
+            
+            // 직접 Signed URL 생성 시도 (파일 존재 확인 건너뛰기)
+            try {
+              final signedUrl = await _supabase.storage
+                  .from(bucketName)
+                  .createSignedUrl(imagePath, 3600);
+              
+              print('Signed URL 생성 성공: $signedUrl');
+              
+              setState(() {
+                _profileImageUrl = signedUrl;
+              });
+            } catch (storageError) {
+              print('Storage 접근 오류: $storageError');
+              // 파일이 없거나 접근할 수 없으면 설정에서 제거
+              await _clearInvalidProfileImage();
+            }
+          }
+        } catch (e) {
+          print('설정 파싱 오류: $e');
+        }
+      } else {
+        print('프로필 설정이 없습니다');
+      }
+    } catch (e) {
+      print('프로필 이미지 로드 오류: $e');
+    }
+  }
 
   Future<void> _handleLogout() async {
     try {
@@ -68,11 +164,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: Column(
               children: [
-                const Icon(
-                  Icons.account_circle,
-                  size: 64,
-                  color: Colors.blue,
-                ),
+                _profileImageUrl != null
+                    ? Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.blue, width: 2),
+                        ),
+                        child: ClipOval(
+                          child: Image.network(
+                            _profileImageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.account_circle,
+                                size: 64,
+                                color: Colors.blue,
+                              );
+                            },
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.account_circle,
+                        size: 64,
+                        color: Colors.blue,
+                      ),
                 const SizedBox(height: 8),
                 Text(
                   _getUserDisplayName(),
@@ -146,13 +264,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.edit, color: Colors.blue),
             title: const Text('프로필 편집'),
             subtitle: const Text('개인 정보 및 프로필 설정'),
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const ProfileEditScreen(),
                 ),
               );
+              // 프로필 편집 후 돌아오면 이미지 새로고침
+              if (result == null) {
+                _loadProfileImage();
+              }
             },
           ),
           

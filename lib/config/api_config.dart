@@ -1,7 +1,7 @@
 class ApiConfig {
   // TODO: OpenWeather API 키를 여기에 입력하세요
   // https://openweathermap.org/api 에서 무료로 발급받을 수 있습니다
-  static const String openWeatherApiKey = '0dbbe3d437dd7b4faa9081d8f74d1250';
+  static const String openWeatherApiKey = '';
   
   static const String openWeatherBaseUrl = 'https://api.openweathermap.org/data/2.5';
   
@@ -25,5 +25,5 @@ class ApiConfig {
   // Gemini API 설정
   // TODO: Gemini API 키를 여기에 입력하세요
   // https://makersuite.google.com/app/apikey 에서 발급받을 수 있습니다
-  static const String geminiApiKey = 'AIzaSyAuuNMVtmHIIyh1v1rtQNik4mNCI1vPQiQ';
+  static const String geminiApiKey = '';
 }

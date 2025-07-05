@@ -8,6 +8,7 @@
 - 🔐 **사용자 인증**: 이메일 로그인, 회원가입, 게스트 모드
 - 📝 **일기 작성**: 텍스트, 이미지, 위치 정보를 포함한 멀티미디어 일기
 - 📅 **타임라인**: 시간순으로 정렬된 일기 조회
+- 📍 **위치·날씨 오토태깅**: GPS 위치와 실시간 날씨 자동 기록
 - 🏷️ **태그 및 카테고리**: 일기 분류 및 검색 최적화
 - 😊 **기분 추적**: 일일 감정 상태 기록 및 분석
 - 📊 **통계 및 분석**: 작성 패턴, 기분 변화 등 개인 인사이트
@@ -32,6 +33,8 @@
 - `supabase_flutter: ^2.3.4` - 백엔드 연동
 - `image_picker: ^1.0.4` - 카메라/갤러리 접근
 - `google_maps_flutter: ^2.5.0` - 지도 및 위치 서비스
+- `geolocator: ^10.1.0` - GPS 위치 정보 획득
+- `http: ^1.1.0` - API 호출 (날씨 정보)
 - `permission_handler: ^11.1.0` - 권한 관리
 - `shared_preferences: ^2.2.2` - 로컬 설정 저장
 - `path_provider: ^2.1.1` - 파일 시스템 접근
@@ -42,12 +45,15 @@
 lib/
 ├── main.dart                           # 앱 진입점
 ├── config/
-│   └── supabase_config.dart           # Supabase 설정
+│   ├── supabase_config.dart           # Supabase 설정
+│   └── api_config.dart                # API 키 및 설정 ✅
 ├── models/
 │   └── moment_entry.dart              # 데이터 모델
 ├── services/
 │   ├── moment_service.dart            # 일기 CRUD 서비스
-│   └── database_migration_service.dart # DB 마이그레이션
+│   ├── database_migration_service.dart # DB 마이그레이션
+│   ├── location_service.dart          # 위치 정보 서비스 ✅
+│   └── weather_service.dart           # 날씨 정보 서비스 ✅
 ├── screens/
 │   ├── auth/
 │   │   └── login_screen.dart          # 로그인/회원가입 화면 ✅
@@ -187,10 +193,13 @@ flutter build appbundle
 - 네트워크 연결 상태 확인
 - 사용자 친화적 오류 처리
 
-### 2. 홈 화면 (`home_screen.dart`)
+### 2. 홈 화면 (`home_screen.dart`) - ✅ 업데이트 (2025-07-05)
 - 오늘의 일기 작성
 - 최근 일기 미리보기
 - 빠른 기분 기록
+- 현재 위치 자동 감지 및 표시
+- 실시간 날씨 정보 표시
+- 위치·날씨 정보 자동 저장
 
 ### 3. 타임라인 화면 (`timeline_screen.dart`)
 - 시간순 일기 목록
@@ -374,6 +383,7 @@ await DatabaseSetupHelper.checkDatabaseStatus();
 - ✅ 멀티미디어 지원
 - ✅ 데이터베이스 스키마 완성
 - ✅ 사용자 인증 시스템 완성 (2025-07-01)
+- ✅ 위치·날씨 오토태깅 완성 (2025-07-05)
 
 ### Phase 2: 고급 기능
 - 🔄 실시간 동기화
@@ -817,9 +827,92 @@ Step 3: 태그 및 옵션
 - **Responsive Design**: 화면 크기에 맞는 다이얼로그
 - **Material Design 3**: 최신 디자인 가이드라인 준수
 
+### 2025-07-05 업데이트 (오후)
+#### ✅ 완성된 기능:
+- **위치·날씨 오토태깅 시스템 구현**
+  - 일기 작성 시 현재 위치와 날씨 정보 자동 수집
+  - 사진 EXIF 위치가 없어도 현재 위치로 대체
+  - OpenWeather API 연동으로 실시간 날씨 정보
+  - 10분간 캐싱으로 API 호출 최적화
+
+- **위치 서비스 구현** (`services/location_service.dart`)
+  - Geolocator 패키지 활용한 GPS 위치 획득
+  - 위치 권한 자동 요청 및 관리
+  - OpenStreetMap Nominatim API로 역지오코딩
+  - 위치명 자동 변환 (좌표 → 주소)
+
+- **날씨 서비스 구현** (`services/weather_service.dart`)
+  - OpenWeather API 연동
+  - 한국어 날씨 상태 표시 (맑음, 구름, 비 등)
+  - 실시간 온도 정보 (섭씨)
+  - 캐싱 메커니즘으로 불필요한 API 호출 방지
+
+- **홈 화면 UI/UX 개선**
+  - 위치·날씨 정보 카드형 UI 추가
+  - 로딩 상태 표시
+  - 아이콘과 색상으로 직관적 정보 전달
+  - 일기 저장 후 자동 정보 갱신
+
+#### 🔧 추가/수정된 파일:
+- `pubspec.yaml` - geolocator, http 패키지 추가
+- `lib/services/location_service.dart` - 위치 서비스 (신규)
+- `lib/services/weather_service.dart` - 날씨 서비스 (신규)
+- `lib/config/api_config.dart` - API 설정 관리 (신규)
+- `lib/screens/home_screen.dart` - 위치·날씨 통합
+- `ios/Runner/Info.plist` - iOS 위치 권한 설정
+
+#### 🛠️ 기술 스택:
+- **geolocator: ^10.1.0** - 크로스플랫폼 위치 서비스
+- **http: ^1.1.0** - HTTP 요청 처리
+- **OpenWeather API** - 날씨 데이터 제공
+- **OpenStreetMap Nominatim** - 역지오코딩 서비스
+
+#### 📱 주요 기능 상세:
+```dart
+// 앱 시작 시 자동 위치 권한 확인
+@override
+void initState() {
+  super.initState();
+  _checkLocationPermissionAndLoad();
+}
+
+// 일기 저장 시 위치·날씨 자동 태깅
+if (_weatherData != null) {
+  insertData['weather'] = _weatherData!.condition;
+  insertData['temperature'] = _weatherData!.temperature;
+}
+if (_locationName != null) {
+  insertData['location_name'] = _locationName;
+}
+```
+
+#### 🔒 권한 설정:
+- **iOS**: Info.plist에 위치 권한 설명 추가
+  - `NSLocationWhenInUseUsageDescription`
+  - `NSLocationAlwaysUsageDescription`
+  - `NSLocationAlwaysAndWhenInUseUsageDescription`
+- **Android**: permission_handler가 자동 처리
+
+#### 💡 사용자 경험 개선:
+- **자동화된 정보 수집**: 번거로운 수동 입력 불필요
+- **실시간 위치·날씨**: 현재 상황을 정확히 기록
+- **시각적 피드백**: 아이콘과 색상으로 직관적 표시
+- **오프라인 대응**: 네트워크 오류 시 우아한 처리
+- **배터리 최적화**: 캐싱으로 불필요한 요청 최소화
+
+#### ⚙️ 설정 방법:
+1. **OpenWeather API 키 발급**
+   - https://openweathermap.org 가입
+   - API Keys 메뉴에서 키 복사
+   - `lib/config/api_config.dart`에 키 입력
+
+2. **iOS 시뮬레이터 위치 설정**
+   - Device → Location → Custom Location
+   - 서울: 37.5665, 126.9780
+
 ---
 
 **마지막 업데이트**: 2025-07-05  
-**버전**: 1.6.0  
+**버전**: 1.7.0  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

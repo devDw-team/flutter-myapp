@@ -57,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final position = await LocationService.getCurrentPosition();
       if (position != null) {
+        debugPrint('Current position: ${position.latitude}, ${position.longitude}');
         setState(() {
           _currentPosition = position;
         });

@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/useful_link.dart';
+import '../services/ai_analysis_service.dart';
 
 class InfoScreen extends StatefulWidget {
   const InfoScreen({super.key});
@@ -462,6 +463,10 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
   String _selectedCategory = '경제';
   bool _isFavorite = false;
   int _currentStep = 0;
+  bool _isAnalyzing = false;
+  bool _hasAnalyzed = false;
+  String? _thumbnailUrl;
+  String? _channelName;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -575,22 +580,174 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_currentStep == 0) ...[
-                          // Step 1: 기본 정보
-                          Text(
-                            '기본 정보',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
+                        if (!_hasAnalyzed) ...[
+                          // URL 입력 단계
+                          Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.auto_awesome,
+                                  color: Theme.of(context).primaryColor,
+                                  size: 64,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'AI가 자동으로 분석해드려요',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'URL을 입력하면 제목, 요약, 태그를 자동으로 추출합니다',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '링크의 제목과 URL을 입력해주세요',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
+                          const SizedBox(height: 40),
+                          
+                          // URL 입력
+                          TextFormField(
+                            controller: _urlController,
+                            decoration: InputDecoration(
+                              labelText: 'URL',
+                              hintText: 'https://example.com 또는 YouTube 링크',
+                              prefixIcon: Icon(
+                                AiAnalysisService.isYouTubeUrl(_urlController.text) 
+                                    ? Icons.video_library
+                                    : Icons.link,
+                                color: AiAnalysisService.isYouTubeUrl(_urlController.text) 
+                                    ? Colors.red
+                                    : null,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'URL을 입력해주세요.';
+                              }
+                              final uri = Uri.tryParse(value);
+                              if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
+                                return '올바른 URL을 입력해주세요.';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {}); // 아이콘 업데이트
+                            },
+                          ),
+                          const SizedBox(height: 32),
+                          
+                          // AI 분석 버튼
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _isAnalyzing ? null : _analyzeUrl,
+                                  icon: _isAnalyzing 
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Icon(Icons.auto_awesome),
+                                  label: Text(
+                                    _isAnalyzing ? '분석 중...' : 'AI로 분석하기',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 12),
+                          Center(
+                            child: TextButton(
+                              onPressed: () {
+                                if (_urlController.text.isNotEmpty) {
+                                  setState(() {
+                                    _hasAnalyzed = true;
+                                    _titleController.text = _urlController.text; // URL을 제목으로 임시 설정
+                                  });
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('URL을 먼저 입력해주세요.'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Text(
+                                '수동으로 입력하기',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 24),
+                        ] else if (_currentStep == 0) ...[
+                          // Step 0: 분석 결과 및 기본 정보
+                          if (_thumbnailUrl != null) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                _thumbnailUrl!,
+                                width: double.infinity,
+                                height: 180,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          
+                          // AI 분석 결과 표시
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.blue.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.auto_awesome,
+                                  color: Colors.blue,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'AI 분석 완료',
+                                  style: TextStyle(
+                                    color: Colors.blue[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                           
                           // 제목 입력
                           TextFormField(
@@ -612,34 +769,25 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                           
-                          // URL 입력
+                          // 요약 입력
                           TextFormField(
-                            controller: _urlController,
+                            controller: _descriptionController,
                             decoration: InputDecoration(
-                              labelText: 'URL',
-                              hintText: 'https://example.com',
-                              prefixIcon: const Icon(Icons.link),
+                              labelText: '요약',
+                              hintText: '링크에 대한 간단한 설명',
+                              prefixIcon: const Icon(Icons.description),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               filled: true,
                               fillColor: Colors.grey[50],
                             ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'URL을 입력해주세요.';
-                              }
-                              final uri = Uri.tryParse(value);
-                              if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
-                                return '올바른 URL을 입력해주세요.';
-                              }
-                              return null;
-                            },
+                            maxLines: 3,
                           ),
                         ] else if (_currentStep == 1) ...[
-                          // Step 2: 카테고리 및 설명
+                          // Step 1: 카테고리 선택
                           Text(
                             '카테고리 선택',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -648,7 +796,7 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '링크의 카테고리를 선택하고 설명을 추가해주세요',
+                            '링크의 카테고리를 선택해주세요',
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.grey[600],
                             ),
@@ -721,25 +869,8 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
                               },
                             ),
                           ),
-                          const SizedBox(height: 24),
-                          
-                          // 설명 입력
-                          TextFormField(
-                            controller: _descriptionController,
-                            decoration: InputDecoration(
-                              labelText: '설명 (선택사항)',
-                              hintText: '링크에 대한 간단한 설명을 추가하세요',
-                              prefixIcon: const Icon(Icons.description),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            maxLines: 3,
-                          ),
                         ] else if (_currentStep == 2) ...[
-                          // Step 3: 태그 및 옵션
+                          // Step 2: 태그 및 옵션
                           Text(
                             '태그 및 옵션',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -772,21 +903,37 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
                           const SizedBox(height: 16),
                           
                           // 추천 태그
-                          Wrap(
-                            spacing: 8,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              '읽어보기', '중요', '참고자료', '나중에', '업무'
-                            ].map((tag) => ActionChip(
-                              label: Text(tag),
-                              onPressed: () {
-                                final currentTags = _tagsController.text;
-                                if (currentTags.isEmpty) {
-                                  _tagsController.text = tag;
-                                } else {
-                                  _tagsController.text = '$currentTags, $tag';
-                                }
-                              },
-                            )).toList(),
+                              if (_tagsController.text.isNotEmpty) ...[
+                                Text(
+                                  'AI가 추출한 태그',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  '읽어보기', '중요', '참고자료', '나중에', '업무'
+                                ].map((tag) => ActionChip(
+                                  label: Text(tag),
+                                  onPressed: () {
+                                    final currentTags = _tagsController.text;
+                                    if (currentTags.isEmpty) {
+                                      _tagsController.text = tag;
+                                    } else if (!currentTags.contains(tag)) {
+                                      _tagsController.text = '$currentTags, $tag';
+                                    }
+                                  },
+                                )).toList(),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 24),
                           
@@ -862,35 +1009,36 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
               ),
               child: Row(
                 children: [
-                  if (_currentStep > 0)
+                  if (_currentStep > 0 || (_hasAnalyzed && _currentStep == 0))
                     TextButton.icon(
                       onPressed: () {
-                        setState(() {
-                          _currentStep--;
-                        });
+                        if (_hasAnalyzed && _currentStep == 0) {
+                          setState(() {
+                            _hasAnalyzed = false;
+                            _titleController.clear();
+                            _descriptionController.clear();
+                            _tagsController.clear();
+                            _thumbnailUrl = null;
+                            _channelName = null;
+                          });
+                        } else {
+                          setState(() {
+                            _currentStep--;
+                          });
+                        }
                       },
                       icon: const Icon(Icons.arrow_back),
                       label: const Text('이전'),
                     ),
                   const Spacer(),
-                  if (_currentStep < 2)
+                  if (_hasAnalyzed && _currentStep < 2)
                     ElevatedButton.icon(
                       onPressed: () {
                         if (_currentStep == 0) {
-                          if (_titleController.text.isEmpty || _urlController.text.isEmpty) {
+                          if (_titleController.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('제목과 URL을 모두 입력해주세요.'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-                          final uri = Uri.tryParse(_urlController.text);
-                          if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('올바른 URL을 입력해주세요.'),
+                                content: Text('제목을 입력해주세요.'),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -954,6 +1102,79 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
     );
   }
 
+  Future<void> _analyzeUrl() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('URL을 입력해주세요.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('올바른 URL을 입력해주세요.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isAnalyzing = true;
+    });
+    
+    try {
+      final result = await AiAnalysisService.analyzeUrl(url);
+      
+      setState(() {
+        _titleController.text = result['title'] ?? '';
+        _descriptionController.text = result['summary'] ?? '';
+        _tagsController.text = result['tags'] ?? '';
+        _thumbnailUrl = result['thumbnail'];
+        _channelName = result['channel'];
+        _hasAnalyzed = true;
+        _isAnalyzing = false;
+      });
+      
+      // 성공 메시지
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI 분석이 완료되었습니다!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('AI 분석 중 오류 발생: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: '수동 입력',
+              onPressed: () {
+                setState(() {
+                  _hasAnalyzed = true;
+                });
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+  
   @override
   void dispose() {
     _titleController.dispose();

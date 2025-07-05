@@ -7,8 +7,10 @@
 ### 🎯 주요 기능
 - 🔐 **사용자 인증**: 이메일 로그인, 회원가입, 게스트 모드
 - 📝 **일기 작성**: 텍스트, 이미지, 위치 정보를 포함한 멀티미디어 일기
-- 📅 **타임라인**: 시간순으로 정렬된 일기 조회
+- 📅 **타임라인**: 시간순으로 정렬된 일기 조회, 날씨 정보 표시, 사진 필터링
 - 📍 **위치·날씨 오토태깅**: GPS 위치와 실시간 날씨 자동 기록
+- 🤖 **AI 기반 URL 분석**: Gemini AI로 웹페이지/YouTube 자동 요약
+- 🔗 **스마트 링크 관리**: URL만으로 제목, 요약, 태그 자동 생성
 - 🏷️ **태그 및 카테고리**: 일기 분류 및 검색 최적화
 - 😊 **기분 추적**: 일일 감정 상태 기록 및 분석
 - 📊 **통계 및 분석**: 작성 패턴, 기분 변화 등 개인 인사이트
@@ -38,6 +40,8 @@
 - `permission_handler: ^11.1.0` - 권한 관리
 - `shared_preferences: ^2.2.2` - 로컬 설정 저장
 - `path_provider: ^2.1.1` - 파일 시스템 접근
+- `google_generative_ai: ^0.4.0` - Gemini AI API
+- `youtube_explode_dart: ^2.0.0` - YouTube 정보 추출
 
 ## 📁 프로젝트 구조
 
@@ -53,7 +57,8 @@ lib/
 │   ├── moment_service.dart            # 일기 CRUD 서비스
 │   ├── database_migration_service.dart # DB 마이그레이션
 │   ├── location_service.dart          # 위치 정보 서비스 ✅
-│   └── weather_service.dart           # 날씨 정보 서비스 ✅
+│   ├── weather_service.dart           # 날씨 정보 서비스 ✅
+│   └── ai_analysis_service.dart       # AI URL 분석 서비스 ✅
 ├── screens/
 │   ├── auth/
 │   │   └── login_screen.dart          # 로그인/회원가입 화면 ✅
@@ -201,12 +206,17 @@ flutter build appbundle
 - 실시간 날씨 정보 표시
 - 위치·날씨 정보 자동 저장
 
-### 3. 타임라인 화면 (`timeline_screen.dart`)
+### 3. 타임라인 화면 (`timeline_screen.dart`) - ✅ 업데이트 (2025-07-05)
 - 시간순 일기 목록
+- 날씨 정보 표시 (아이콘 + 온도)
+- 사진 유무 필터링 기능
 - 검색 및 필터링
 - 무한 스크롤 페이징
 
-### 4. 정보 화면 (`info_screen.dart`)
+### 4. 정보 화면 (`info_screen.dart`) - ✅ 업데이트 (2025-07-05)
+- AI 기반 URL 자동 분석
+- URL만으로 제목, 요약, 태그 자동 생성
+- YouTube 동영상 정보 추출
 - 유용한 링크 관리
 - 외부 콘텐츠 연동
 - 개인 북마크
@@ -299,6 +309,20 @@ await DatabaseSetupHelper.migrateExistingData();
 
 // 데이터베이스 상태 확인
 await DatabaseSetupHelper.checkDatabaseStatus();
+```
+
+### AiAnalysisService (`ai_analysis_service.dart`) - ✅ 신규 (2025-07-05)
+```dart
+// URL 타입 확인
+bool isYoutube = AiAnalysisService.isYouTubeUrl(url);
+
+// URL 분석 (웹페이지 또는 YouTube)
+final result = await AiAnalysisService.analyzeUrl(url);
+// 반환: {title, summary, tags, thumbnail?, channel?}
+
+// Gemini 모델: gemini-1.5-flash 사용
+// YouTube: 동영상 메타데이터 + AI 요약
+// 웹페이지: HTML 파싱 + AI 요약
 ```
 
 ## 🔒 보안 및 권한
@@ -910,9 +934,82 @@ if (_locationName != null) {
    - Device → Location → Custom Location
    - 서울: 37.5665, 126.9780
 
+### 2025-07-05 업데이트 (오후 2차)
+#### ✅ 완성된 기능:
+- **AI 기반 URL 자동 분석 시스템 구현**
+  - Gemini API 통합 (`google_generative_ai: ^0.4.0`)
+  - YouTube 정보 추출 (`youtube_explode_dart: ^2.0.0`)
+  - 웹페이지/YouTube URL 자동 감지
+  - 제목, 요약, 태그 자동 추출
+  - YouTube 썸네일 표시
+
+- **정보 등록 프로세스 혁신**
+  - URL만 입력하면 모든 정보 자동 추출
+  - AI가 분석한 제목, 요약, 태그 편집 가능
+  - 수동 입력 옵션 유지
+  - 단계별 입력 프로세스 (URL → 분석 결과 → 카테고리 → 태그)
+
+- **타임라인 기능 개선**
+  - 날씨 정보 표시 (아이콘 + 온도)
+  - 사진 유무 필터링 기능
+  - 날씨 아이콘 색상 구분
+
+#### 🔧 해결된 문제:
+- **Gemini API 모델 변경**
+  - `gemini-pro` → `gemini-1.5-flash` 모델로 업데이트
+  - API 버전 호환성 문제 해결
+
+- **MomentEntry 모델 확장**
+  - `weather`, `temperature` 필드 추가
+  - 타임라인에서 날씨 정보 표시 가능
+
+#### 📝 추가된 파일:
+- `lib/services/ai_analysis_service.dart` - AI URL 분석 서비스
+
+#### 🔧 수정된 파일:
+- `lib/config/api_config.dart` - Gemini API 키 설정 추가
+- `lib/screens/info_screen.dart` - AI 분석 기능 통합
+- `lib/screens/timeline_screen.dart` - 날씨 표시 및 필터링
+- `lib/models/moment_entry.dart` - weather, temperature 필드 추가
+- `pubspec.yaml` - AI 관련 의존성 추가
+
+#### 🛠️ AI 분석 시스템 상세:
+```dart
+// Gemini API 설정
+static const String geminiApiKey = 'YOUR_GEMINI_API_KEY';
+
+// AI 분석 서비스 주요 기능
+- URL 타입 자동 감지 (일반 웹페이지 / YouTube)
+- YouTube 비디오 정보 추출 (제목, 설명, 채널, 썸네일)
+- 웹페이지 HTML 파싱 및 텍스트 추출
+- Gemini AI를 통한 콘텐츠 분석
+- 구조화된 응답 (제목, 요약, 태그)
+```
+
+#### 💡 사용자 경험 개선:
+- **간소화된 정보 등록**: URL 입력만으로 모든 정보 자동 생성
+- **AI 기반 콘텐츠 분석**: 정확한 제목과 요약 자동 생성
+- **스마트 태그 추출**: 콘텐츠 기반 관련 키워드 자동 추출
+- **YouTube 특화 기능**: 동영상 썸네일 및 채널 정보 표시
+- **유연한 편집**: AI 분석 결과를 기반으로 사용자 수정 가능
+
+#### ⚙️ Gemini API 설정:
+1. **API 키 발급**
+   - https://makersuite.google.com/app/apikey 접속
+   - Google 계정으로 로그인
+   - "Create API Key" 클릭
+   
+2. **API 키 설정**
+   - `lib/config/api_config.dart` 파일 열기
+   - `geminiApiKey`에 발급받은 키 입력
+
+3. **사용 가능한 모델**
+   - `gemini-1.5-flash` - 빠른 응답 (추천)
+   - `gemini-1.5-pro` - 고급 분석
+
 ---
 
 **마지막 업데이트**: 2025-07-05  
-**버전**: 1.7.0  
+**버전**: 1.8.0  
 **Flutter 버전**: 3.0+  
 **Supabase 버전**: 2.3.4

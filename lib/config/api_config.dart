@@ -21,4 +21,9 @@ class ApiConfig {
     'Squall': '돌풍',
     'Tornado': '토네이도',
   };
+  
+  // Gemini API 설정
+  // TODO: Gemini API 키를 여기에 입력하세요
+  // https://makersuite.google.com/app/apikey 에서 발급받을 수 있습니다
+  static const String geminiApiKey = 'AIzaSyAuuNMVtmHIIyh1v1rtQNik4mNCI1vPQiQ';
 }

@@ -461,6 +461,7 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
   
   String _selectedCategory = '경제';
   bool _isFavorite = false;
+  int _currentStep = 0;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -474,151 +475,482 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
     '바이브코딩',
   ];
 
+  final List<Map<String, dynamic>> _categoryData = [
+    {'name': '경제', 'icon': Icons.trending_up, 'color': Colors.green},
+    {'name': '경영', 'icon': Icons.business, 'color': Colors.blue},
+    {'name': '정치', 'icon': Icons.account_balance, 'color': Colors.purple},
+    {'name': '사회', 'icon': Icons.groups, 'color': Colors.orange},
+    {'name': 'IT', 'icon': Icons.computer, 'color': Colors.indigo},
+    {'name': 'AI', 'icon': Icons.smart_toy, 'color': Colors.cyan},
+    {'name': '바이브코딩', 'icon': Icons.code, 'color': Colors.pink},
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('새 링크 추가'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 제목 입력
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: '제목 *',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '제목을 입력해주세요.';
-                    }
-                    return null;
-                  },
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withOpacity(0.8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 16),
-                
-                // URL 입력
-                TextFormField(
-                  controller: _urlController,
-                  decoration: const InputDecoration(
-                    labelText: 'URL *',
-                    border: OutlineInputBorder(),
-                    hintText: 'https://example.com',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'URL을 입력해주세요.';
-                    }
-                    final uri = Uri.tryParse(value);
-                    if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
-                      return '올바른 URL을 입력해주세요.';
-                    }
-                    return null;
-                  },
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
-                const SizedBox(height: 16),
-                
-                // 설명 입력
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: '설명',
-                    border: OutlineInputBorder(),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.add_link,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 16),
-                
-                // 카테고리 선택
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  decoration: const InputDecoration(
-                    labelText: '카테고리 *',
-                    border: OutlineInputBorder(),
+                  const SizedBox(width: 12),
+                  const Text(
+                    '새 링크 추가',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  items: _categories.map((String category) {
-                    return DropdownMenuItem<String>(
-                      value: category,
-                      child: Text(category),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedCategory = newValue!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                
-                // 태그 입력
-                TextFormField(
-                  controller: _tagsController,
-                  decoration: const InputDecoration(
-                    labelText: '태그',
-                    border: OutlineInputBorder(),
-                    hintText: 'Flutter, 개발, 모바일 (쉼표로 구분)',
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Progress Indicator
+            Container(
+              height: 4,
+              color: Colors.grey[200],
+              child: Stack(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: MediaQuery.of(context).size.width * 0.9 * ((_currentStep + 1) / 3),
+                    height: 4,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withOpacity(0.6)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Content
+            Flexible(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_currentStep == 0) ...[
+                          // Step 1: 기본 정보
+                          Text(
+                            '기본 정보',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '링크의 제목과 URL을 입력해주세요',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          
+                          // 제목 입력
+                          TextFormField(
+                            controller: _titleController,
+                            decoration: InputDecoration(
+                              labelText: '제목',
+                              hintText: '링크의 제목을 입력하세요',
+                              prefixIcon: const Icon(Icons.title),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return '제목을 입력해주세요.';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // URL 입력
+                          TextFormField(
+                            controller: _urlController,
+                            decoration: InputDecoration(
+                              labelText: 'URL',
+                              hintText: 'https://example.com',
+                              prefixIcon: const Icon(Icons.link),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'URL을 입력해주세요.';
+                              }
+                              final uri = Uri.tryParse(value);
+                              if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
+                                return '올바른 URL을 입력해주세요.';
+                              }
+                              return null;
+                            },
+                          ),
+                        ] else if (_currentStep == 1) ...[
+                          // Step 2: 카테고리 및 설명
+                          Text(
+                            '카테고리 선택',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '링크의 카테고리를 선택하고 설명을 추가해주세요',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          
+                          // 카테고리 선택 (Grid)
+                          SizedBox(
+                            height: 120,
+                            child: GridView.builder(
+                              scrollDirection: Axis.horizontal,
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.6,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              itemCount: _categoryData.length,
+                              itemBuilder: (context, index) {
+                                final category = _categoryData[index];
+                                final isSelected = _selectedCategory == category['name'];
+                                
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedCategory = category['name'];
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      color: isSelected 
+                                          ? category['color'].withOpacity(0.2)
+                                          : Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected 
+                                            ? category['color']
+                                            : Colors.transparent,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          category['icon'],
+                                          color: isSelected 
+                                              ? category['color']
+                                              : Colors.grey[600],
+                                          size: 28,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          category['name'],
+                                          style: TextStyle(
+                                            color: isSelected 
+                                                ? category['color']
+                                                : Colors.grey[700],
+                                            fontWeight: isSelected 
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          
+                          // 설명 입력
+                          TextFormField(
+                            controller: _descriptionController,
+                            decoration: InputDecoration(
+                              labelText: '설명 (선택사항)',
+                              hintText: '링크에 대한 간단한 설명을 추가하세요',
+                              prefixIcon: const Icon(Icons.description),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            maxLines: 3,
+                          ),
+                        ] else if (_currentStep == 2) ...[
+                          // Step 3: 태그 및 옵션
+                          Text(
+                            '태그 및 옵션',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '태그를 추가하고 즐겨찾기 여부를 선택하세요',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          
+                          // 태그 입력
+                          TextFormField(
+                            controller: _tagsController,
+                            decoration: InputDecoration(
+                              labelText: '태그',
+                              hintText: '태그를 입력하세요 (쉼표로 구분)',
+                              prefixIcon: const Icon(Icons.label),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          
+                          // 추천 태그
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              '읽어보기', '중요', '참고자료', '나중에', '업무'
+                            ].map((tag) => ActionChip(
+                              label: Text(tag),
+                              onPressed: () {
+                                final currentTags = _tagsController.text;
+                                if (currentTags.isEmpty) {
+                                  _tagsController.text = tag;
+                                } else {
+                                  _tagsController.text = '$currentTags, $tag';
+                                }
+                              },
+                            )).toList(),
+                          ),
+                          const SizedBox(height: 24),
+                          
+                          // 즐겨찾기 옵션
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _isFavorite ? Colors.amber : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _isFavorite ? Icons.star : Icons.star_border,
+                                  color: Colors.amber,
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        '즐겨찾기로 추가',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        '자주 사용하는 링크를 즐겨찾기로 표시하세요',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: _isFavorite,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _isFavorite = value;
+                                    });
+                                  },
+                                  activeColor: Colors.amber,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                
-                // 즐겨찾기 체크박스
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isFavorite,
-                      onChanged: (value) {
+              ),
+            ),
+            
+            // Actions
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  if (_currentStep > 0)
+                    TextButton.icon(
+                      onPressed: () {
                         setState(() {
-                          _isFavorite = value ?? false;
+                          _currentStep--;
                         });
                       },
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('이전'),
                     ),
-                    const Text('즐겨찾기로 추가'),
-                  ],
-                ),
-              ],
+                  const Spacer(),
+                  if (_currentStep < 2)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        if (_currentStep == 0) {
+                          if (_titleController.text.isEmpty || _urlController.text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('제목과 URL을 모두 입력해주세요.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+                          final uri = Uri.tryParse(_urlController.text);
+                          if (uri == null || !uri.hasAbsolutePath || !uri.hasScheme) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('올바른 URL을 입력해주세요.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+                        }
+                        setState(() {
+                          _currentStep++;
+                        });
+                      },
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('다음'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    )
+                  else
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        if (_formKey.currentState!.validate()) {
+                          final tags = _tagsController.text
+                              .split(',')
+                              .map((tag) => tag.trim())
+                              .where((tag) => tag.isNotEmpty)
+                              .toList();
+
+                          final link = UsefulLink(
+                            title: _titleController.text.trim(),
+                            url: _urlController.text.trim(),
+                            description: _descriptionController.text.trim().isEmpty 
+                                ? null 
+                                : _descriptionController.text.trim(),
+                            category: _selectedCategory,
+                            tags: tags,
+                            isFavorite: _isFavorite,
+                            createdAt: DateTime.now(),
+                            updatedAt: DateTime.now(),
+                          );
+
+                          Navigator.of(context).pop(link);
+                        }
+                      },
+                      icon: const Icon(Icons.save),
+                      label: const Text('저장'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              final tags = _tagsController.text
-                  .split(',')
-                  .map((tag) => tag.trim())
-                  .where((tag) => tag.isNotEmpty)
-                  .toList();
-
-              final link = UsefulLink(
-                title: _titleController.text.trim(),
-                url: _urlController.text.trim(),
-                description: _descriptionController.text.trim().isEmpty 
-                    ? null 
-                    : _descriptionController.text.trim(),
-                category: _selectedCategory,
-                tags: tags,
-                isFavorite: _isFavorite,
-                createdAt: DateTime.now(),
-                updatedAt: DateTime.now(),
-              );
-
-              Navigator.of(context).pop(link);
-            }
-          },
-          child: const Text('저장'),
-        ),
-      ],
     );
   }
 

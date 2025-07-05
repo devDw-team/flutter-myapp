@@ -7,6 +7,8 @@ class MomentEntry {
   final double? latitude;
   final double? longitude;
   final String? locationName;
+  final String? weather;
+  final double? temperature;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -19,6 +21,8 @@ class MomentEntry {
     this.latitude,
     this.longitude,
     this.locationName,
+    this.weather,
+    this.temperature,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -34,6 +38,8 @@ class MomentEntry {
       latitude: json['latitude']?.toDouble(),
       longitude: json['longitude']?.toDouble(),
       locationName: json['location_name'],
+      weather: json['weather'],
+      temperature: json['temperature']?.toDouble(),
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
@@ -50,6 +56,8 @@ class MomentEntry {
       'latitude': latitude,
       'longitude': longitude,
       'location_name': locationName,
+      'weather': weather,
+      'temperature': temperature,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -64,6 +72,8 @@ class MomentEntry {
       'latitude': latitude,
       'longitude': longitude,
       'location_name': locationName,
+      'weather': weather,
+      'temperature': temperature,
       'updated_at': updatedAt.toIso8601String(),
     };
   }
@@ -78,6 +88,8 @@ class MomentEntry {
     double? latitude,
     double? longitude,
     String? locationName,
+    String? weather,
+    double? temperature,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -90,6 +102,8 @@ class MomentEntry {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationName: locationName ?? this.locationName,
+      weather: weather ?? this.weather,
+      temperature: temperature ?? this.temperature,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

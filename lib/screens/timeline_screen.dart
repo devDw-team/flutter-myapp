@@ -13,9 +13,11 @@ class TimelineScreen extends StatefulWidget {
 
 class _TimelineScreenState extends State<TimelineScreen> {
   List<MomentEntry> _moments = [];
+  List<MomentEntry> _filteredMoments = [];
   bool _isLoading = true;
   String? _error;
   final _supabase = Supabase.instance.client;
+  String _filterMode = 'all'; // 'all', 'with_photo', 'without_photo'
 
   @override
   void initState() {
@@ -54,6 +56,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
       if (mounted) {
         setState(() {
           _moments = moments;
+          _applyFilter();
           _isLoading = false;
         });
       }
@@ -117,6 +120,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
       // 3. 로컬 리스트에서 제거
       setState(() {
         _moments.removeWhere((m) => m.id == moment.id);
+        _applyFilter();
         _isLoading = false;
       });
 
@@ -173,6 +177,121 @@ class _TimelineScreenState extends State<TimelineScreen> {
     );
   }
 
+  void _applyFilter() {
+    switch (_filterMode) {
+      case 'with_photo':
+        _filteredMoments = _moments.where((m) => m.imagePath != null && m.imagePath!.isNotEmpty).toList();
+        break;
+      case 'without_photo':
+        _filteredMoments = _moments.where((m) => m.imagePath == null || m.imagePath!.isEmpty).toList();
+        break;
+      default:
+        _filteredMoments = List.from(_moments);
+    }
+  }
+
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('필터 선택'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                title: const Text('전체 보기'),
+                value: 'all',
+                groupValue: _filterMode,
+                onChanged: (value) {
+                  Navigator.pop(context);
+                  setState(() {
+                    _filterMode = value!;
+                    _applyFilter();
+                  });
+                },
+              ),
+              RadioListTile<String>(
+                title: const Text('사진이 있는 글만'),
+                value: 'with_photo',
+                groupValue: _filterMode,
+                onChanged: (value) {
+                  Navigator.pop(context);
+                  setState(() {
+                    _filterMode = value!;
+                    _applyFilter();
+                  });
+                },
+              ),
+              RadioListTile<String>(
+                title: const Text('사진이 없는 글만'),
+                value: 'without_photo',
+                groupValue: _filterMode,
+                onChanged: (value) {
+                  Navigator.pop(context);
+                  setState(() {
+                    _filterMode = value!;
+                    _applyFilter();
+                  });
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _getWeatherIcon(String? weather) {
+    if (weather == null) return Icons.wb_sunny;
+    
+    switch (weather.toLowerCase()) {
+      case '맑음':
+      case 'clear':
+        return Icons.wb_sunny;
+      case '구름':
+      case 'clouds':
+        return Icons.cloud;
+      case '비':
+      case 'rain':
+        return Icons.umbrella;
+      case '눈':
+      case 'snow':
+        return Icons.ac_unit;
+      case '안개':
+      case 'mist':
+      case 'fog':
+        return Icons.water;
+      default:
+        return Icons.wb_sunny;
+    }
+  }
+
+  Color _getWeatherColor(String? weather) {
+    if (weather == null) return Colors.orange;
+    
+    switch (weather.toLowerCase()) {
+      case '맑음':
+      case 'clear':
+        return Colors.orange;
+      case '구름':
+      case 'clouds':
+        return Colors.grey;
+      case '비':
+      case 'rain':
+        return Colors.blue;
+      case '눈':
+      case 'snow':
+        return Colors.lightBlue;
+      case '안개':
+      case 'mist':
+      case 'fog':
+        return Colors.blueGrey;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,6 +299,27 @@ class _TimelineScreenState extends State<TimelineScreen> {
         title: const Text('타임라인'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Stack(
+              children: [
+                const Icon(Icons.filter_list),
+                if (_filterMode != 'all')
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onPressed: _showFilterDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _refreshMoments,
@@ -217,7 +357,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
                     ],
                   ),
                 )
-              : _moments.isEmpty
+              : _filteredMoments.isEmpty
                   ? const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -243,9 +383,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
                       onRefresh: _refreshMoments,
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
-                        itemCount: _moments.length,
+                        itemCount: _filteredMoments.length,
                         itemBuilder: (context, index) {
-                          final moment = _moments[index];
+                          final moment = _filteredMoments[index];
                           
                           return Card(
                             margin: const EdgeInsets.only(bottom: 16),
@@ -398,24 +538,54 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                     style: Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   
-                                  // 위치 정보 (있는 경우)
-                                  if (moment.latitude != null && moment.longitude != null) ...[
+                                  // 날씨 및 위치 정보
+                                  if (moment.weather != null || moment.temperature != null || (moment.latitude != null && moment.longitude != null)) ...[
                                     const SizedBox(height: 8),
                                     Row(
                                       children: [
-                                        const Icon(
-                                          Icons.location_on,
-                                          size: 16,
-                                          color: Colors.grey,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          moment.locationName ?? 
-                                          '${moment.latitude!.toStringAsFixed(4)}, ${moment.longitude!.toStringAsFixed(4)}',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        // 날씨 정보
+                                        if (moment.weather != null || moment.temperature != null) ...[
+                                          Icon(
+                                            _getWeatherIcon(moment.weather),
+                                            size: 16,
+                                            color: _getWeatherColor(moment.weather),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${moment.weather ?? ''} ${moment.temperature != null ? '${moment.temperature}°C' : ''}',
+                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          if (moment.latitude != null && moment.longitude != null) ...[
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              width: 1,
+                                              height: 12,
+                                              color: Colors.grey.withOpacity(0.3),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+                                        ],
+                                        // 위치 정보
+                                        if (moment.latitude != null && moment.longitude != null) ...[
+                                          const Icon(
+                                            Icons.location_on,
+                                            size: 16,
                                             color: Colors.grey,
                                           ),
-                                        ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              moment.locationName ?? 
+                                              '${moment.latitude!.toStringAsFixed(4)}, ${moment.longitude!.toStringAsFixed(4)}',
+                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                color: Colors.grey,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ],

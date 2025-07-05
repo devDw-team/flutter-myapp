@@ -45,6 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>현재 위치의 날씨 정보를 자동으로 기록하기 위해 위치 권한이 필요합니다.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>앱이 백그라운드에서도 위치 정보를 사용하여 날씨를 기록할 수 있습니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>일기 작성 시 현재 위치와 날씨 정보를 자동으로 기록하기 위해 위치 권한이 필요합니다.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

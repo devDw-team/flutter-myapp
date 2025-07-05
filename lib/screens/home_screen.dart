@@ -6,8 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/photo_location_service.dart';
 import '../services/moment_service.dart';
+import '../services/location_service.dart';
+import '../services/weather_service.dart';
 import '../models/moment_entry.dart';
+import '../config/api_config.dart';
 import 'map_screen.dart';
+import 'package:geolocator/geolocator.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +27,67 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, double>? _photoLocation;
   bool _isSaving = false;
   final _supabase = Supabase.instance.client;
+  Position? _currentPosition;
+  String? _locationName;
+  WeatherData? _weatherData;
+  bool _isLoadingLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLocationPermissionAndLoad();
+  }
+
+  Future<void> _checkLocationPermissionAndLoad() async {
+    final hasPermission = await LocationService.checkLocationPermission();
+    if (!hasPermission) {
+      final granted = await LocationService.requestLocationPermission();
+      if (!granted) {
+        return;
+      }
+    }
+    _loadCurrentLocationAndWeather();
+  }
+
+  Future<void> _loadCurrentLocationAndWeather() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      final position = await LocationService.getCurrentPosition();
+      if (position != null) {
+        setState(() {
+          _currentPosition = position;
+        });
+
+        final locationName = await LocationService.getLocationName(
+          position.latitude,
+          position.longitude,
+        );
+        
+        // API 키가 설정되지 않은 경우 날씨 정보를 가져오지 않음
+        WeatherData? weather;
+        if (ApiConfig.openWeatherApiKey != 'YOUR_API_KEY_HERE') {
+          weather = await WeatherService.getWeatherByLocation(
+            position.latitude,
+            position.longitude,
+          );
+        }
+
+        setState(() {
+          _locationName = locationName;
+          _weatherData = weather;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading location/weather: $e');
+    } finally {
+      setState(() {
+        _isLoadingLocation = false;
+      });
+    }
+  }
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -122,11 +187,35 @@ class _HomeScreenState extends State<HomeScreen> {
       if (imagePath != null) {
         insertData['image_path'] = imagePath;
       }
-      if (_photoLocation?['latitude'] != null) {
-        insertData['latitude'] = _photoLocation!['latitude'];
+      
+      // 사진 위치 또는 현재 위치 사용
+      double? latitude;
+      double? longitude;
+      
+      if (_photoLocation != null) {
+        latitude = _photoLocation!['latitude'];
+        longitude = _photoLocation!['longitude'];
+      } else if (_currentPosition != null) {
+        latitude = _currentPosition!.latitude;
+        longitude = _currentPosition!.longitude;
       }
-      if (_photoLocation?['longitude'] != null) {
-        insertData['longitude'] = _photoLocation!['longitude'];
+      
+      if (latitude != null) {
+        insertData['latitude'] = latitude;
+      }
+      if (longitude != null) {
+        insertData['longitude'] = longitude;
+      }
+      
+      // 위치명 추가
+      if (_locationName != null) {
+        insertData['location_name'] = _locationName;
+      }
+      
+      // 날씨 정보 추가
+      if (_weatherData != null) {
+        insertData['weather'] = _weatherData!.condition;
+        insertData['temperature'] = _weatherData!.temperature;
       }
 
       final response = await _supabase
@@ -150,6 +239,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _selectedImage = null;
           _photoLocation = null;
         });
+        
+        // 위치와 날씨 정보 새로고침
+        _loadCurrentLocationAndWeather();
       }
     } catch (e) {
       // 에러 처리
@@ -312,6 +404,60 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               maxLines: 3,
             ),
+            
+            const SizedBox(height: 16),
+            
+            // 위치 및 날씨 정보 표시
+            if (_isLoadingLocation)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (_locationName != null || _weatherData != null)
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      if (_locationName != null)
+                        Flexible(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.location_on, size: 16, color: Colors.blue),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  _locationName!,
+                                  style: const TextStyle(fontSize: 14),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (_locationName != null && _weatherData != null)
+                        const SizedBox(width: 8),
+                      if (_weatherData != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.wb_sunny_outlined, size: 16, color: Colors.orange),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${_weatherData!.condition} ${_weatherData!.temperature.round()}°C',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             
             const Spacer(),
             

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/useful_link.dart';
 import '../services/ai_analysis_service.dart';
+import 'link_detail_screen.dart';
 
 class InfoScreen extends StatefulWidget {
   const InfoScreen({super.key});
@@ -311,7 +312,19 @@ class _InfoScreenState extends State<InfoScreen> {
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   child: InkWell(
-                                    onTap: () => _launchUrl(link.url),
+                                    onTap: () async {
+                                      final result = await Navigator.push<bool>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => LinkDetailScreen(link: link),
+                                        ),
+                                      );
+                                      
+                                      // 삭제되었으면 목록 새로고침
+                                      if (result == true) {
+                                        await _loadLinks();
+                                      }
+                                    },
                                     borderRadius: BorderRadius.circular(8),
                                     child: Padding(
                                       padding: const EdgeInsets.all(16),
@@ -321,13 +334,19 @@ class _InfoScreenState extends State<InfoScreen> {
                                           Row(
                                             children: [
                                               Expanded(
-                                                child: Text(
-                                                  link.title,
-                                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                    fontWeight: FontWeight.bold,
+                                                child: Hero(
+                                                  tag: 'link_title_${link.id}',
+                                                  child: Material(
+                                                    color: Colors.transparent,
+                                                    child: Text(
+                                                      link.title,
+                                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
                                                   ),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               // 즐겨찾기 아이콘
@@ -338,19 +357,21 @@ class _InfoScreenState extends State<InfoScreen> {
                                                   size: 20,
                                                 ),
                                               const SizedBox(width: 8),
-                                              // 삭제 버튼
+                                              // 링크 열기 버튼
                                               GestureDetector(
-                                                onTap: () => _showDeleteConfirmation(link),
+                                                onTap: () {
+                                                  _launchUrl(link.url);
+                                                },
                                                 child: Container(
                                                   padding: const EdgeInsets.all(6),
                                                   decoration: BoxDecoration(
-                                                    color: Colors.grey.withOpacity(0.1),
-                                                    borderRadius: BorderRadius.circular(12),
+                                                    color: Colors.blue.withOpacity(0.1),
+                                                    borderRadius: BorderRadius.circular(8),
                                                   ),
                                                   child: const Icon(
-                                                    Icons.more_vert,
-                                                    color: Colors.grey,
-                                                    size: 16,
+                                                    Icons.open_in_new,
+                                                    color: Colors.blue,
+                                                    size: 18,
                                                   ),
                                                 ),
                                               ),
@@ -373,7 +394,7 @@ class _InfoScreenState extends State<InfoScreen> {
                                           Text(
                                             link.url,
                                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: Colors.blue,
+                                              color: Colors.grey,
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
@@ -383,33 +404,25 @@ class _InfoScreenState extends State<InfoScreen> {
                                           
                                           Row(
                                             children: [
-                                              // 카테고리
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.blue.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                ),
-                                                child: Text(
-                                                  link.category,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.blue,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
                                               // 태그들
                                               Expanded(
                                                 child: Wrap(
                                                   spacing: 4,
+                                                  runSpacing: 4,
                                                   children: link.tags
-                                                      .map((tag) => Chip(
-                                                            label: Text(
-                                                              tag,
-                                                              style: const TextStyle(fontSize: 12),
+                                                      .map((tag) => Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.grey[200],
+                                                              borderRadius: BorderRadius.circular(12),
                                                             ),
-                                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                            child: Text(
+                                                              tag,
+                                                              style: const TextStyle(
+                                                                fontSize: 11,
+                                                                color: Colors.black87,
+                                                              ),
+                                                            ),
                                                           ))
                                                       .toList(),
                                                 ),
